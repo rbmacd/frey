@@ -25,8 +25,8 @@ Many different paradigms exist for codifying the conceptual stages of the NetDev
 
 Appropriate tools must be selected for each of these stages, based on the criteria listed above.  Care must be taken in not selecting too many tools for each stage, as the complexity of integrating the various tools together grows as the number of possible combinations increases.
 
-The following table identifies technologies that the Frey project has targeted for its distribution.
+The following table identifies technologies that the Frey project is evaluating for its distribution.
 
 | Source(s) of Truth | Config Automation & Orchestration | The Network | Pipelines, Testing & Quality Control | Simulation | Observability / Assurance | 
 | ------------------ | -------------------------- | ---------------- | ---------- | --------- | ------------------------------ | 
-| NetBox<br/>Nautobot | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>github actions<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana | 
+| NetBox<br/>Nautobot | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>github actions<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana<br/>LibreNMS | 
