@@ -29,4 +29,4 @@ The following table identifies technologies that the Frey project is evaluating 
 
 | Source(s) of Truth | Config Automation & Orchestration | The Network | Pipelines, Testing & Quality Control | Simulation | Observability / Assurance | 
 | ------------------ | -------------------------- | ---------------- | ---------- | --------- | ------------------------------ | 
-| NetBox<br/>Nautobot | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>github actions<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana<br/>LibreNMS | 
+| NetBox<br/>Nautobot<br/>Ansible Vault | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>github actions<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana<br/>LibreNMS | 
