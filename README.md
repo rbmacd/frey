@@ -30,3 +30,13 @@ The following table identifies technologies that the Frey project is evaluating 
 | Source(s) of Truth | Config Automation & Orchestration | The Network | Pipelines, Testing & Quality Control | Simulation | Observability / Assurance | 
 | ------------------ | -------------------------- | ---------------- | ---------- | --------- | ------------------------------ | 
 | NetBox<br/>Nautobot<br/>Ansible Vault | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>github actions<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana<br/>LibreNMS<br/><i>need log solution</i> | 
+
+## Approach & Implementation Plan
+ - Use publicly available containers wherever possible
+ - Assume a brownfield implementation wherever possible
+ - Simulation stage is likely the most complicated and expensive.  Do it last and make it an optional step.
+ - Observability space is complex and will likely be time consuming.  Focus on the value-add stuff first (SoT, config orchestration, automated testing and complete the feedback loop)
+ - End goal of this effort is a single, standalone artifact (bash script, python script, helm chart, whatever) that quickly and easily sets up this system
+ - 80/20 approach; focus on covering the most common and most basic scenarios first.
+ - Where does the end user's git repo live? Will build a local git repo as part of Frey's early iterations to stay true to the "NetDevOps in a box" goal, but will most assuredly need to support user configurable external repos.  What does this do to the pipeline infrastructure?  TBD...
+
