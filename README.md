@@ -40,3 +40,18 @@ The following table identifies technologies that the Frey project is evaluating 
  - 80/20 approach; focus on covering the most common and most basic scenarios first.
  - Where does the end user's git repo live? Will build a local git repo as part of Frey's early iterations to stay true to the "NetDevOps in a box" goal, but will most assuredly need to support user configurable external repos.  What does this do to the pipeline infrastructure?  TBD...
 
+1. Stand up NetBox
+ - Seed inventory
+ - Use docker image
+ - Find way to back up & restore data
+ - Investigate autodiscovery options
+ - Investigate secrets management
+2. Stand up AWX
+ - Use docker image
+ - Leverage Netbox as dynamic inventory for AWX
+ - Find way to back up and restore data
+ - Investigate how NetBox inventory fields are manifested in AWX/ansible
+ - Write simple playbook against virtual/lab device(s) to verify basic functionality
+ - Write simple Jinja template and push against virtual/lab device(s)
+ - Demonstrate "compliance" checks of template vs actual state
+   
