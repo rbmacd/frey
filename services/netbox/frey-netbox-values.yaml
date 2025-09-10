@@ -967,7 +967,7 @@ ingress:
   ##
   annotations: {}
   hosts:
-    - host: ""  ## Edited by RM from default
+    - host: netbox.local  ## Edited by RM from default
       paths:
         # You can manually specify the service name and service port if
         # required. This could be useful if for exemple you are using the AWS

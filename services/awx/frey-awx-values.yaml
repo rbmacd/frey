@@ -4,6 +4,9 @@ AWX:
   name: awx
   spec:
     admin_user: admin
+    ingress_type: ingress
+    hostname: awx.local
+    service_type: ClusterIP
 
   # configurations for external postgres instance
   postgres:
