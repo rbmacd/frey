@@ -42,16 +42,19 @@ The following table identifies technologies that the Frey project is evaluating 
 
 1. Stand up NetBox
  - Seed inventory
- - Use docker image
+ - Use helm chart
  - Find way to back up & restore data
  - Investigate autodiscovery options
  - Investigate secrets management
+ - Implement TLS and leverage secrets management
 2. Stand up AWX
- - Use docker image
+ - Use helm chart
  - Leverage Netbox as dynamic inventory for AWX
  - Find way to back up and restore data
  - Investigate how NetBox inventory fields are manifested in AWX/ansible
  - Write simple playbook against virtual/lab device(s) to verify basic functionality
  - Write simple Jinja template and push against virtual/lab device(s)
  - Demonstrate "compliance" checks of template vs actual state
+ - Investigate secrets management
+ - Implement TLS an dleverage secrets management
    
