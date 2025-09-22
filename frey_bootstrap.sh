@@ -14,6 +14,17 @@ echo
 read -s -p "Enter NetBox admin password to store in Vault: " NETBOX_ADMIN_PASSWORD
 echo
 
+# Prompt for NetBox admin e-mail to store in Vault
+read -p "Enter NetBox admin e-mail address to store in Vault: " NETBOX_ADMIN_EMAIL
+echo
+
+# Prompt for AWX admin password to store in Vault
+read -s -p "Enter AWX admin password to store in Vault: " AWX_ADMIN_PASSWORD
+echo
+
+# Generate NetBox API token
+export NETBOX_APITOKEN=$(openssl rand -hex 20)
+
 
 ### K3S ###
 
@@ -39,26 +50,36 @@ export VAULT_TOKEN="$VAULT_TOKEN"
 export VAULT_TOKEN_BASE64=$(echo -n $VAULT_TOKEN | base64)
 
 # Seed vault with initial secrets
-vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD"
-unset NETBOX_ADMIN_PASSWORD
+vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN"
+vault kv put secret/frey/services/awx/admin password="$AWX_ADMIN_PASSWORD"
 
+unset NETBOX_ADMIN_PASSWORD
+unset NETBOX_ADMIN_EMAIL
+unset NETBOX_APITOKEN
+unset AWX_ADMIN_PASSWORD
 
 ### EXTERNAL-SECRETS OPERATORS ###
+
+# Must create namespaces first for ExternalSecrets to be installed into properly.  This is annoying but necessary.
+kubectl create namespace netbox
+kubectl create namespace awx-operator
 
 # Install external secrets operator
 helm repo add external-secrets https://charts.external-secrets.io
 helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace -f services/external-secrets/frey-external_secrets-values.yaml
 
 # Wait for external-secrets to be fully up and running before applying SecretStore and ExternalSecret
-until [ "$(kubectl get all -n external-secrets | grep -P 'pod/external-secrets-webhook-.+1/1.+Running' && kubectl get all -n external-secrets | grep -P 'pod/external-secrets-\d+.+1/1.+Running')" ]; do echo "Waiting for external-secrets-webhook to start..." ; sleep 1; done
+until [ "$(kubectl get all -n external-secrets | grep -P 'pod/external-secrets-webhook-.+1/1.+Running' && kubectl get all -n external-secrets | grep -P 'pod/external-secrets-\d+.+1/1.+Running')" ]; do echo "Waiting for external-secrets-webhook to start..." ; sleep 3; done
 
-# Capture local IP address for use in SecretStore
+# Capture local IP address for use in ClusterSecretStore
 export LOCAL_IP_ADDRESS=$(ip route | grep "^default" | awk '{print $(NF-2)}')
 
 # Deploy SecretStore and ExternalSecret for Frey admin user
-envsubst < services/external-secrets/frey-external_secrets_vault_SecretStore.yaml | kubectl apply -f -
-kubectl apply -f services/external-secrets/frey-external_secrets_vault_ExternalSecret_frey-admin.yaml
-
+envsubst < services/external-secrets/frey-external_secrets_vault_ClusterSecretStore.yaml | kubectl apply -f -
+unset VAULT_TOKEN_BASE64
+unset LOCAL_IP_ADDRESS
+kubectl apply -f services/external-secrets/frey-external_secrets_vault_ExternalSecret_frey-netbox-admin.yaml #NetBox secret
+kubectl apply -f services/external-secrets/frey-external_secrets_vault_ExternalSecret_frey-awx-admin.yaml #AWX secret
 
 ### NETBOX ###
 

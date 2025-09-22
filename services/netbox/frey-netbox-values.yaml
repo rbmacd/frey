@@ -88,7 +88,8 @@ superuser:
   email: admin@example.com
   password: ""
   apiToken: ""
-  existingSecret: ""
+  existingSecret: vault-frey-services-netbox-admin
+  #existingSecret: ""
 
 # This is a list of valid fully-qualified domain names (FQDNs) for the NetBox
 # server. NetBox will not permit write access to the server via any other
