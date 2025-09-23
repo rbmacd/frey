@@ -1,6 +1,8 @@
 # frey
 Frey - NetDevOps in a Box
 
+# FREY IS UNDER ACTIVE DEVELOPMENT AND NOT YET READY TO SHIP.  CONTRIBUTIONS WELCOME.
+
 Frey is a NetDevOps Distribution designed to streamline NetDevOps tooling installation and configuration, allowing network engineers to take advantage of DevOps concepts quickly and easily.
 
 Getting started with NetDevOps can be overwhelming, given the plethora of bespoke tools and technologies available.  Many engineers find themselves struggling to get started because the process of identifying the tools required and the subsequent configuration and integration of said tools requires deep knowledge of each tool, solid understanding of operating systems and virtualization concepts, container and container orchestration paradigms, CI/CD pipelines, network simulations, linting, and more.  Frey helps ease this barrier to entry.
@@ -29,16 +31,19 @@ The following table identifies technologies that the Frey project is evaluating 
 
 | Source(s) of Truth | Config Automation & Orchestration | The Network | Pipelines, Testing & Quality Control | Simulation | Observability / Assurance | 
 | ------------------ | -------------------------- | ---------------- | ---------- | --------- | ------------------------------ | 
-| NetBox<br/>Nautobot<br/>Ansible Vault | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>github actions<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana<br/>LibreNMS<br/><i>need log solution</i> | 
+| NetBox<br/>Ansible Vault | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana<br/>snmp-exporter<br/><i>need log solution</i> | 
 
 ## Approach & Implementation Plan
  - Use publicly available containers wherever possible
  - Assume a brownfield implementation wherever possible
+ - Run on top of kubernetes wherever possible for portability (use k3s for local instantiation)
  - Simulation stage is likely the most complicated and expensive.  Do it last and make it an optional step.
  - Observability space is complex and will likely be time consuming.  Focus on the value-add stuff first (SoT, config orchestration, automated testing and complete the feedback loop)
  - End goal of this effort is a single, standalone artifact (bash script, python script, helm chart, whatever) that quickly and easily sets up this system
  - 80/20 approach; focus on covering the most common and most basic scenarios first.
  - Where does the end user's git repo live? Will build a local git repo as part of Frey's early iterations to stay true to the "NetDevOps in a box" goal, but will most assuredly need to support user configurable external repos.  What does this do to the pipeline infrastructure?  TBD...
+ - Do NOT implement a production grade secrets server.  The requirements here are onerous and highly dependent on the organization.  Frey will provide a _non-production dev instance of Hashicorp Vault_ during initial bootstrapping.
+ - The external-secrets operator will be leveraged on k8s, which will synchronize secrets within k8s to a third party secret store.  Frey will come out of the box with external-secrets leveraging the _non-prod dev instance of Hashicorp Vault_ for ease of use.  Production implementations will thus need to point external-secrets to an appropriate secret store.  This abstracts away the need to configure each service's (e.g. NetBox, AWX, etc.) secrets and instead centralizes on k8s principles.
 
 1. Stand up NetBox
  - Seed inventory
@@ -57,4 +62,8 @@ The following table identifies technologies that the Frey project is evaluating 
  - Demonstrate "compliance" checks of template vs actual state
  - Investigate secrets management
  - Implement TLS an dleverage secrets management
+3. Instantiate a virtual testbed network
+ - Use netlab and/or containerlab for network device & topology simulation
+ - Use cEOS as the base OS, if possible.  Ideally follow up with Cisco Nexus, then Nokia SRLinux
+ - This testbed will simulate the "real" network being automated
    
