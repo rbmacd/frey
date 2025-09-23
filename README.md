@@ -31,7 +31,7 @@ The following table identifies technologies that the Frey project is evaluating 
 
 | Source(s) of Truth | Config Automation & Orchestration | The Network | Pipelines, Testing & Quality Control | Simulation | Observability / Assurance | 
 | ------------------ | -------------------------- | ---------------- | ---------- | --------- | ------------------------------ | 
-| NetBox<br/>Ansible Vault | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana<br/>snmp-exporter<br/><i>need log solution</i> | 
+| NetBox<br/>Hashicorp Vault | Ansible<br/>Python | Cisco<br/>Arista<br/>Juniper | gitlab<br/>pybatfish<br/>pyATS<br/>ANTA<br/>pytest | netlab<br/>containerlab | icinga<br/>prometheus<br/>grafana<br/>snmp-exporter<br/><i>need log solution</i> | 
 
 ## Approach & Implementation Plan
  - Use publicly available containers wherever possible
