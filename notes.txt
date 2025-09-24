@@ -1,0 +1,58 @@
+## Random notes and handy commands that the maintainer kept handy during development
+
+### HELM COMMANDS
+
+helm --kubeconfig /etc/rancher/k3s/k3s.yaml list
+
+
+### AWX COMMANDS
+
+helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm
+helm show values awx-operator/awx-operator
+helm --kubeconfig /etc/rancher/k3s/k3s.yaml install --namespace awx --create-namespace awx-operator awx-operator/awx-operator -f frey-awx-values.yaml
+
+### NETBOX COMMANDS
+
+helm show values oci://ghcr.io/netbox-community/netbox-chart/netbox
+helm --kubeconfig /etc/rancher/k3s/k3s.yaml delete netbox
+helm --kubeconfig /etc/rancher/k3s/k3s.yaml install netbox oci://ghcr.io/netbox-community/netbox-chart/netbox --create-namespace --namespace netbox -f frey-netbox-values.yaml
+#### BE CAREFUL WITH THIS ONE
+kubectl delete pvc -n netbox $(kubectl get pvc -n netbox -o yaml | yq '.items[].metadata.name')
+####
+
+
+### TROUBLESHOOTING COMMANDS
+
+kubectl debug -it PODNAMEHERE --image=nicolaka/netshoot
+
+
+### K3S COMMANDS
+sudo /usr/local/bin/k3s-uninstall.sh
+sudo curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE="644" sh -
+
+
+### VAULT COMMANDS
+docker run --cap-add=IPC_LOCK -e 'VAULT_LOCAL_CONFIG={"storage": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": { "address": "0.0.0.0:8200", "tls_disable": true}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h", "ui": true, "disable_mlock": true}' -p 8200:8200 hashicorp/vault server
+
+docker run -p 8200:8200 hashicorp/vault server -dev -dev-root-token-id="rootToken" &
+
+export VAULT_ADDR="http://127.0.0.1:8200"
+export VAULT_TOKEN="rootToken"
+
+vault status
+vault secrets list
+vault kv put secret/frey/services/netbox/admin username='frey_admin' password='frey_password'
+
+
+### EXTERNAL SECRETS OPERATOR
+helm repo add external-secrets https://charts.external-secrets.io
+helm --kubeconfig /etc/rancher/k3s/k3s.yaml install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace -f frey-external_secrets-values.yaml
+
+#kubectl apply -f frey-external_secrets-values.yaml
+kubectl apply -f frey-external_secrets_vault_SecretStore.yaml
+kubectl apply -f frey-external_secrets_vault_ExternalSecret_frey-admin.yaml
+
+#capture local default IP address
+ip route | grep "^default" | awk '{print $(NF-2)}' #works if only a single line is output
+ip route | grep "^default" | awk 'NR==1 {print $(NF-2)}' #works if multiple default entries exist, e.g. connected to wifi and wired network at the same time.  This gets the first entry, usually the lowest metric.
+
