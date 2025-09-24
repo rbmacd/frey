@@ -5,12 +5,12 @@ To run Frey locally...
 1. Ensure the packages in system_package_requirements.txt are installed on your local Linux box (Ubuntu or CentOS/RHEL).
 2. Append ```/etc/hosts``` with the following entries: \
 ```127.0.0.1 netbox.local``` \
-```127.0.0.1 awx.local``` \
-3. ```./frey_bootstrap.sh``` \
+```127.0.0.1 awx.local``` 
+3. ```./frey_bootstrap.sh``` 
 4. If using multiple terminal windows, ensure that the following environment variables are defined in each window or in ~/.bashrc \
 ```export VAULT_ADDR="http://127.0.0.1:8200"``` \
 ```export VAULT_TOKEN=tokenGoesHere #this is defined when executing frey_bootstrap.sh``` \
-```export KUBECONFIG=/etc/rancher/k3s/k3s.yaml``` \
+```export KUBECONFIG=/etc/rancher/k3s/k3s.yaml``` 
 
 # frey
 Frey - NetDevOps in a Box
