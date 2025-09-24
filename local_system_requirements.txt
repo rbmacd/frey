@@ -12,4 +12,4 @@ awx.local 127.0.0.1
 #Vault env variables will need to be defined if using multiple terminal sessions
 # the frey_bootstrap.sh file generates the env variables but said env variables only exist in said terminal session
 export VAULT_ADDR="http://127.0.0.1:8200"
-export VAULT_TOKEN=tokenNameGoesHere-enteredInBootstrapScript
+export VAULT_TOKEN=tokenNameGoesHere #entered as part of frey_bootstrap.sh
