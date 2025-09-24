@@ -1,0 +1,15 @@
+### Tracking file for localhost tweaks required to run the full Frey suite locally
+
+#Add env variable for KUBECONFIG.  k3s install does not place the kubeconfig in a "default" location and kubectl and helm will fail without this
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml #added to ~/.bashrc
+
+#Add following entries to /etc/hosts for proper Ingress routing
+# Not needed if proper DNS is implemented.  This is for local testing.
+
+netbox.local 127.0.0.1
+awx.local 127.0.0.1
+
+#Vault env variables will need to be defined if using multiple terminal sessions
+# the frey_bootstrap.sh file generates the env variables but said env variables only exist in said terminal session
+export VAULT_ADDR="http://127.0.0.1:8200"
+export VAULT_TOKEN=tokenNameGoesHere-enteredInBootstrapScript

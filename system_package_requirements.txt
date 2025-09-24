@@ -1,0 +1,10 @@
+git
+ansible
+docker #see https://docs.docker.com/engine/install/ubuntu/ for detailed instructions.  These instructions also failed and an LLM bailed me out.  Need to add the docker.socket service then add the local user account to the 'docker' group, which had to be created.  Nothing can be easy...
+ca-certificates
+curl
+pip
+yq
+vault #had to use snap install vs apt install out of the box
+helm #snap install with --classic
+kubectl #snap install with --classic
