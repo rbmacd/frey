@@ -72,7 +72,7 @@ helm install external-secrets external-secrets/external-secrets -n external-secr
 until [ "$(kubectl get all -n external-secrets | grep -P 'pod/external-secrets-webhook-.+1/1.+Running' && kubectl get all -n external-secrets | grep -P 'pod/external-secrets-\d+.+1/1.+Running')" ]; do echo "Waiting for external-secrets-webhook to start..." ; sleep 3; done
 
 # Capture local IP address for use in ClusterSecretStore
-export LOCAL_IP_ADDRESS=$(ip route | grep "^default" | awk '{print $(NF-2)}')
+export LOCAL_IP_ADDRESS=$(ip route | grep "^default" | awk 'NR==1 {print $(NF-2)}')
 
 # Deploy SecretStore and ExternalSecret for Frey admin user
 envsubst < services/external-secrets/frey-external_secrets_vault_ClusterSecretStore.yaml | kubectl apply -f -
