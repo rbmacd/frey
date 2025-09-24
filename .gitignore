@@ -1,3 +1,4 @@
 .deployment_state.json
 .deployment_state.json.backup
 .env
+services/netlab/netlab-venv/

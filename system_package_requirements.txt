@@ -11,3 +11,13 @@ vault #snap install
 helm #snap install with --classic
 kubectl #snap install with --classic
 net-tools
+python3-all-venv
+sshpass
+netlab #this takes a bit of doing as netlab was installed in a python venv
+    #python3 -m venv netlab-venv/
+    #source netlab-venv/bin/activate
+    #pip install networklab
+    #netlab install ansible
+    #netlab install containerlab
+    #netlab install grpc
+    #netlab install graph
