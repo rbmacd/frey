@@ -106,3 +106,13 @@ terraform destroy
 ```
 
 Type `yes` when prompted. This will delete the cluster and all associated AWS resources.
+
+## Cost Considerations
+
+Running this EKS cluster will incur AWS costs approximately:
+- EKS control plane: ~$73/month
+- 3x t3.small worker nodes: ~$46/month  
+- NAT Gateway: ~$33/month
+- **Estimated total: ~$150/month**
+
+Remember to run `terraform destroy` when not in use to avoid ongoing charges.
