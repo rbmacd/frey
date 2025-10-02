@@ -6,7 +6,10 @@ docker #see https://docs.docker.com/engine/install/ubuntu/ for detailed instruct
 ca-certificates
 curl
 pip
+htop
+btop
 yq
+whois
 vault #snap install
 helm #snap install with --classic
 kubectl #snap install with --classic
@@ -21,3 +24,6 @@ netlab #this takes a bit of doing as netlab was installed in a python venv
     #netlab install containerlab
     #netlab install grpc
     #netlab install graph
+pulseaudio-utils #troubleshooting broken audio with dell dock.  nothing can be easy.
+wireplumber
+pipewire-audio-client-libraries

@@ -1,4 +1,16 @@
 .deployment_state.json
 .deployment_state.json.backup
 .env
-services/netlab/netlab-venv/
+services/netlab/netlab-venv/*
+!services/netlab/netlab-venv/test-topology/
+services/netlab/netlab-venv/test-topology/*
+!services/netlab/netlab-venv/test-topology/topology.yml
+!services/netlab/netlab-venv/test-topology/clab.yml
+!services/netlab/netlab-venv/vxlan-ospf-evpn/
+services/netlab/netlab-venv/vxlan-ospf-evpn/*
+!services/netlab/netlab-venv/vxlan-ospf-evpn/topology.yml
+!services/netlab/netlab-venv/vxlan-ospf-evpn/clab.yml
+scripts/netbox-helpers/*
+!scripts/netbox-helpers/requirements.txt
+!scripts/netbox-helpers/seed-netbox-from-clab.py
+!scripts/netbox-helpers/bootstrap.sh
