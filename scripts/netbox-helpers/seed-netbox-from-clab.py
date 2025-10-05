@@ -13,14 +13,14 @@
 ###
 
 import yaml
-import pynetbox
+import pynetbox # type: ignore
 import sys
 import os
 import logging
 import argparse
 import urllib3
 from ipaddress import ip_interface
-from pynetbox.core.query import RequestError
+from pynetbox.core.query import RequestError # type: ignore
 from urllib3.exceptions import InsecureRequestWarning
 
 # Configure logging

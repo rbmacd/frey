@@ -1,0 +1,40 @@
+---
+plugin: netbox.netbox.nb_inventory
+api_endpoint: "{{ lookup('env', 'NETBOX_API') }}"
+token: "{{ lookup('env', 'NETBOX_TOKEN') }}"
+validate_certs: true
+config_context: false
+flatten_custom_fields: true
+
+# Group devices by NetBox attributes
+group_by:
+  - device_roles
+  - sites
+  - platforms
+  - manufacturers
+  - status
+
+# Filter to only include devices with primary IPs
+device_query_filters:
+  - has_primary_ip: 'true'
+
+# Optional: Additional filters
+query_filters:
+  - status: active
+
+# Compose ansible variables from NetBox data
+compose:
+  ansible_host: primary_ip4.address | ipaddr('address')
+  device_role: device_role.slug
+  site_name: site.name
+  platform_name: platform.slug | default('unknown')
+  manufacturer: manufacturer.name | default('unknown')
+
+# Create keyed groups for easier targeting
+keyed_groups:
+  - prefix: status
+    key: status.value
+  - prefix: role
+    key: device_role.slug
+  - prefix: site
+    key: site.slug

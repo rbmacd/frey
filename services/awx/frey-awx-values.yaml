@@ -5,7 +5,7 @@ AWX:
   spec:
     admin_user: admin
     ingress_type: ingress
-    hostname: awx.local
+    hostname: ${AWX_URL}
     service_type: ClusterIP
     admin_password_secret: vault-frey-services-awx-admin
     
@@ -30,3 +30,545 @@ operator-controller: {}
 
 operator-controller-containers: {}
 
+# Extra Kubernetes resources
+extraDeploy:
+  # ===========================================
+  # EXTERNAL SECRETS
+  # ===========================================
+  
+    # NetBox credentials
+  - |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: netbox-credentials
+      namespace: awx-operator
+    spec:
+      refreshInterval: 10m
+      secretStoreRef:
+        name: vault-backend
+        kind: ClusterSecretStore
+      target:
+        name: netbox-credentials
+        creationPolicy: Owner
+      data:
+      - secretKey: host
+        remoteRef:
+          key: frey/services/netbox/admin
+          property: host
+      - secretKey: token
+        remoteRef:
+          key: frey/services/netbox/admin
+          property: api_token
+
+  # SSH key for managed hosts
+  - |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: ssh-credentials
+      namespace: awx-operator
+    spec:
+      refreshInterval: 10m
+      secretStoreRef:
+        name: vault-backend
+        kind: ClusterSecretStore
+      target:
+        name: ssh-credentials
+        creationPolicy: Owner
+      data:
+      - secretKey: username
+        remoteRef:
+          key: secret/frey/services/awx/ssh
+          property: username
+      - secretKey: ssh_key_data
+        remoteRef:
+          key: secret/frey/services/awx/ssh
+          property: private_key
+
+  # Configuration values (Git repo URL and branch)
+  - |
+    apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: awx-config
+      namespace: awx-operator
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        name: vault-backend
+        kind: ClusterSecretStore
+      target:
+        name: awx-config
+        creationPolicy: Owner
+      data:
+      - secretKey: git_repo_url
+        remoteRef:
+          key: secret/frey/services/awx/config
+          property: git_repo_url
+      - secretKey: git_branch
+        remoteRef:
+          key: secret/frey/services/awx/config
+          property: git_branch
+
+  # ===========================================
+  # CONFIGURATION PLAYBOOK
+  # ===========================================
+  
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: awx-config-playbook
+      namespace: awx-operator
+    data:
+      configure-awx.yaml: |
+        {{ `---
+        - name: Configure AWX Instance with NetBox Integration
+          hosts: localhost
+          gather_facts: false
+          vars:
+            awx_host: "http://awx-service"
+            awx_username: "admin"
+            awx_password: "{{ lookup('file', '/secrets/admin/password') }}"
+            netbox_url: "{{ lookup('file', '/secrets/netbox/host') }}"
+            netbox_token: "{{ lookup('file', '/secrets/netbox/token') }}"
+            ssh_username: "{{ lookup('file', '/secrets/ssh/username') }}"
+            ssh_key: "{{ lookup('file', '/secrets/ssh/ssh_key_data') }}"
+            network_username: "{{ lookup('file', '/secrets/network/username') }}"
+            network_password: "{{ lookup('file', '/secrets/network/password') }}"
+            git_repo_url: "{{ lookup('file', '/secrets/config/git_repo_url') }}"
+            git_branch: "{{ lookup('file', '/secrets/config/git_branch') }}"
+          
+          tasks:
+            - name: Display AWX connection details
+              debug:
+                msg: |
+                  AWX Host: {{ awx_host }}
+                  Full Ping URL: {{ awx_host }}/api/v2/ping/
+            
+            - name: Wait for AWX API to be available
+              uri:
+                url: "{{ awx_host }}/api/v2/ping/"
+                method: GET
+                status_code: 200
+                validate_certs: no
+              register: ping_result
+              until: ping_result.status == 200
+              retries: 60
+              delay: 10
+              failed_when: false
+            
+            - name: Display ping result on failure
+              debug:
+                var: ping_result
+              when: ping_result.status != 200
+            
+            - name: Wait for AWX to be fully configured (check migrations)
+              uri:
+                url: "{{ awx_host }}/api/v2/config/"
+                method: GET
+                status_code: 200
+                user: "{{ awx_username }}"
+                password: "{{ awx_password }}"
+                force_basic_auth: yes
+                validate_certs: no
+              register: config_result
+              until: config_result.status == 200
+              retries: 60
+              delay: 10
+            
+            - name: Verify AWX instance is healthy
+              uri:
+                url: "{{ awx_host }}/api/v2/instances/"
+                method: GET
+                status_code: 200
+                user: "{{ awx_username }}"
+                password: "{{ awx_password }}"
+                force_basic_auth: yes
+                validate_certs: no
+              register: instances_result
+              until: 
+                - instances_result.status == 200
+                - instances_result.json is defined
+                - instances_result.json.count is defined
+                - instances_result.json.count | int > 0
+                - instances_result.json.results is defined
+                - instances_result.json.results | length > 0
+                - instances_result.json.results[0].capacity is defined
+                - instances_result.json.results[0].capacity | int > 0
+              retries: 60
+              delay: 10
+              failed_when: false
+            
+            - name: Create NetBox credential type
+              awx.awx.credential_type:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "NetBox"
+                kind: "cloud"
+                inputs:
+                  fields:
+                    - id: NETBOX_API
+                      type: string
+                      label: "NetBox API Endpoint"
+                    - id: NETBOX_TOKEN
+                      type: string
+                      label: "NetBox API Token"
+                      secret: true
+                  required:
+                    - NETBOX_API
+                    - NETBOX_TOKEN
+                injectors:
+                  env:
+                    NETBOX_API: "{{ netbox_url }}"
+                    NETBOX_TOKEN: "{{ netbox_token }}"
+                state: present
+            
+            - name: Create NetBox credential
+              awx.awx.credential:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "NetBox Production"
+                credential_type: "NetBox"
+                inputs:
+                  NETBOX_API: "{{ netbox_url }}"
+                  NETBOX_TOKEN: "{{ netbox_token }}"
+                organization: "Default"
+                state: present
+            
+            - name: Create SSH Machine credential
+              awx.awx.credential:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "Ansible SSH Key"
+                description: "SSH key-based authentication for Linux/Unix hosts"
+                credential_type: "Machine"
+                inputs:
+                  username: "{{ ssh_username }}"
+                  ssh_key_data: "{{ ssh_key }}"
+                organization: "Default"
+                state: present
+            
+            - name: Create Network Device credential
+              awx.awx.credential:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "Network Device Password"
+                description: "Username/password authentication for network devices"
+                credential_type: "Machine"
+                inputs:
+                  username: "{{ network_username }}"
+                  password: "{{ network_password }}"
+                organization: "Default"
+                state: present
+            
+            - name: Create Project from public Git repository
+              awx.awx.project:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "Infrastructure Automation"
+                organization: "Default"
+                scm_type: "git"
+                scm_url: "{{ git_repo_url }}"
+                scm_branch: "{{ git_branch }}"
+                scm_update_on_launch: true
+                scm_clean: true
+                state: present
+              register: project
+            
+            - name: Trigger project sync
+              awx.awx.project_update:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                project: "Infrastructure Automation"
+                wait: true
+                timeout: 300
+            
+            - name: Create Dynamic Inventory
+              awx.awx.inventory:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "NetBox Dynamic Inventory"
+                description: "Dynamic inventory sourced from NetBox"
+                organization: "Default"
+                state: present
+            
+            - name: Create NetBox inventory source
+              awx.awx.inventory_source:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "NetBox Source"
+                description: "NetBox dynamic inventory plugin"
+                inventory: "NetBox Dynamic Inventory"
+                source: "scm"
+                source_project: "Infrastructure Automation"
+                source_path: "inventory/netbox_inventory.yml"
+                credential: "NetBox Production"
+                overwrite: true
+                overwrite_vars: true
+                update_on_launch: true
+                update_cache_timeout: 0
+                state: present
+            
+            - name: Perform initial NetBox inventory sync
+              awx.awx.inventory_source_update:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "NetBox Source"
+                inventory: "NetBox Dynamic Inventory"
+                wait: true
+                timeout: 300
+            
+            - name: Create example Job Template for SSH-based hosts
+              awx.awx.job_template:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "Network Device Facts"
+                description: "Gather facts from network devices"
+                job_type: "run"
+                organization: "Default"
+                inventory: "NetBox Dynamic Inventory"
+                project: "Infrastructure Automation"
+                playbook: "playbooks/gather_facts.yml"
+                credentials:
+                  - "Ansible SSH Key"
+                ask_limit_on_launch: true
+                ask_variables_on_launch: true
+                ask_credential_on_launch: true
+                state: present
+            
+            - name: Create example Job Template for network devices
+              awx.awx.job_template:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "Network Device Configuration Backup"
+                description: "Backup configurations from network devices using password authentication"
+                job_type: "run"
+                organization: "Default"
+                inventory: "NetBox Dynamic Inventory"
+                project: "Infrastructure Automation"
+                playbook: "playbooks/backup_configs.yml"
+                credentials:
+                  - "Network Device Password"
+                ask_limit_on_launch: true
+                ask_variables_on_launch: true
+                state: present
+            
+            - name: Display completion message
+              debug:
+                msg: |
+                  ========================================
+                  AWX Configuration Complete!
+                  ========================================
+                  
+                  Resources Created:
+                  - NetBox credential type
+                  - NetBox credential: "NetBox Production"
+                  - SSH credential: "Ansible SSH Key"
+                  - Network credential: "Network Device Password"
+                  - Project: "Infrastructure Automation" (public Git)
+                  - Inventory: "NetBox Dynamic Inventory"
+                  - Inventory Source: "NetBox Source"
+                  - Job Template: "Network Device Facts" (SSH)
+                  - Job Template: "Network Device Configuration Backup" (Password)
+                  
+                  Access AWX at: {{ awx_host }}
+                  Username: {{ awx_username }}
+                  
+                  NetBox inventory has been synced successfully.
+                  ========================================` }}
+  
+  # ===========================================
+  # POST-INSTALL CONFIGURATION JOB
+  # ===========================================
+  
+  - |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: awx-config-job
+      namespace: awx-operator
+  
+  - |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: awx-config-job
+      namespace: awx-operator
+    rules:
+    - apiGroups: [""]
+      resources: ["pods", "pods/log"]
+      verbs: ["get", "list"]
+  
+  - |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: awx-config-job
+      namespace: awx-operator
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: awx-config-job
+    subjects:
+    - kind: ServiceAccount
+      name: awx-config-job
+      namespace: awx-operator
+  
+  - |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: configure-awx
+      namespace: awx-operator
+      annotations:
+        "helm.sh/hook": post-install,post-upgrade
+        "helm.sh/hook-weight": "10"
+        "helm.sh/hook-delete-policy": before-hook-creation
+    spec:
+      backoffLimit: 10
+      template:
+        metadata:
+          name: configure-awx
+        spec:
+          serviceAccountName: awx-config-job
+          restartPolicy: Never
+          containers:
+          - name: ansible-config
+            image: quay.io/ansible/awx-ee:latest
+            env:
+            - name: HOME
+              value: /tmp
+            - name: ANSIBLE_LOCAL_TMP
+              value: /tmp/.ansible/tmp
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              echo "========================================="
+              echo "AWX Configuration Job Starting"
+              echo "========================================="
+
+              # Create ansible directories in writable location
+              mkdir -p /tmp/.ansible/tmp
+              mkdir -p /tmp/.ansible/collections
+              
+              # Ensure awx.awx collection is available
+              echo "Installing awx.awx collection..."
+              ansible-galaxy collection install awx.awx --force
+              
+              echo "Waiting for External Secrets to sync..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+              ALL_SECRETS_READY=false
+              
+              while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$ALL_SECRETS_READY" = false ]; do
+                echo "Checking if all secrets are available (attempt $((RETRY_COUNT+1))/$MAX_RETRIES)..."
+                
+                # Check if all required secret files exist and are non-empty
+                if [ -s /secrets/admin/password ] && \
+                   [ -s /secrets/netbox/host ] && \
+                   [ -s /secrets/netbox/token ] && \
+                   [ -s /secrets/ssh/username ] && \
+                   [ -s /secrets/ssh/ssh_key_data ] && \
+                   [ -s /secrets/config/git_repo_url ] && \
+                   [ -s /secrets/config/git_branch ]; then
+                  echo "All secrets are available and non-empty"
+                  ALL_SECRETS_READY=true
+                else
+                  echo "Waiting for secrets to sync..."
+                  RETRY_COUNT=$((RETRY_COUNT+1))
+                  sleep 5
+                fi
+              done
+              
+              if [ "$ALL_SECRETS_READY" = false ]; then
+                echo "ERROR: Secrets did not sync within timeout period"
+                echo "Checking which secrets are missing:"
+                [ ! -s /secrets/admin/password ] && echo "  - Missing: admin password"
+                [ ! -s /secrets/netbox/host ] && echo "  - Missing: netbox host"
+                [ ! -s /secrets/netbox/token ] && echo "  - Missing: netbox token"
+                [ ! -s /secrets/ssh/username ] && echo "  - Missing: ssh username"
+                [ ! -s /secrets/ssh/ssh_key_data ] && echo "  - Missing: ssh key"
+                [ ! -s /secrets/config/git_repo_url ] && echo "  - Missing: git repo url"
+                [ ! -s /secrets/config/git_branch ] && echo "  - Missing: git branch"
+                exit 1
+              fi
+              
+              # Verify secrets exist
+              echo "Verifying secrets are mounted..."
+              ls -la /secrets/*/
+              
+              echo "Running AWX configuration playbook..."
+              ansible-playbook /playbook/configure-awx.yaml -v
+              
+              echo "========================================="
+              echo "AWX Configuration Complete!"
+              echo "========================================="
+            
+            volumeMounts:
+            - name: playbook
+              mountPath: /playbook
+              readOnly: true
+            - name: admin-password
+              mountPath: /secrets/admin
+              readOnly: true
+            - name: netbox-creds
+              mountPath: /secrets/netbox
+              readOnly: true
+            - name: ssh-creds
+              mountPath: /secrets/ssh
+              readOnly: true
+            - name: awx-config
+              mountPath: /secrets/config
+              readOnly: true
+            
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+          
+          volumes:
+          - name: playbook
+            configMap:
+              name: awx-config-playbook
+          - name: admin-password
+            secret:
+              secretName: vault-frey-services-awx-admin
+          - name: netbox-creds
+            secret:
+              secretName: netbox-credentials
+          - name: ssh-creds
+            secret:
+              secretName: ssh-credentials
+          - name: awx-config
+            secret:
+              secretName: awx-config
