@@ -32,8 +32,12 @@ echo
 # Prompt for AWX ingress hostname to define in helm chart values
 read -p "Enter AWX ingress URL: " AWX_URL
 
-# Prompt user for SSH AWX credential username
-read -p "Enter username for AWX's SSH credential type: " AWX_SSH_USERNAME
+# Prompt user for SSH AWX network credential username
+read -p "Enter username for AWX's network SSH credential type: " AWX_SSH_USERNAME
+
+# Prompt user for SSH AWX network credential password
+read -s -p "Enter password for AWX's network password to store in Vault: " AWX_SSH_PASSWORD
+echo
 
 # Prompt user for SSH private key location. If no key is provided, generate one.
 read -p "Enter the path to your SSH private key to be used as an AWX credential [~/.ssh/ansible_id_rsa]: " SSH_KEY_PATH
@@ -150,7 +154,7 @@ echo ""
 # Seed vault with initial secrets
 vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="$NETBOX_URL"
 vault kv put secret/frey/services/awx/admin password="$AWX_ADMIN_PASSWORD"
-vault kv put secret/frey/services/awx/ssh username="$AWX_SSH_USERNAME" private_key="$(cat $SSH_KEY_PATH)"
+vault kv put secret/frey/services/awx/ssh username="$AWX_SSH_USERNAME" private_key="$(cat $SSH_KEY_PATH)" ssh_password="$AWX_SSH_PASSWORD"
 vault kv put secret/frey/services/awx/config git_repo_url="$REPO_URL" git_branch="$BRANCH_NAME"
 
 # Validate that secrets are added properly

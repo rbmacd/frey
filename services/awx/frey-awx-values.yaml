@@ -85,6 +85,10 @@ extraDeploy:
         remoteRef:
           key: secret/frey/services/awx/ssh
           property: private_key
+      - secretKey: ssh_password
+        remoteRef:
+          key: secret/frey/services/awx/ssh
+          property: ssh_password
 
   # Configuration values (Git repo URL and branch)
   - |
@@ -135,8 +139,7 @@ extraDeploy:
             netbox_token: "{{ lookup('file', '/secrets/netbox/token') }}"
             ssh_username: "{{ lookup('file', '/secrets/ssh/username') }}"
             ssh_key: "{{ lookup('file', '/secrets/ssh/ssh_key_data') }}"
-            network_username: "{{ lookup('file', '/secrets/network/username') }}"
-            network_password: "{{ lookup('file', '/secrets/network/password') }}"
+            ssh_password: "{{ lookup('file', '/secrets/ssh/ssh_password')}}"
             git_repo_url: "{{ lookup('file', '/secrets/config/git_repo_url') }}"
             git_branch: "{{ lookup('file', '/secrets/config/git_branch') }}"
           
@@ -266,8 +269,8 @@ extraDeploy:
                 description: "Username/password authentication for network devices"
                 credential_type: "Machine"
                 inputs:
-                  username: "{{ network_username }}"
-                  password: "{{ network_password }}"
+                  username: "{{ ssh_username }}"
+                  password: "{{ ssh_password }}"
                 organization: "Default"
                 state: present
             
@@ -496,6 +499,7 @@ extraDeploy:
                    [ -s /secrets/netbox/token ] && \
                    [ -s /secrets/ssh/username ] && \
                    [ -s /secrets/ssh/ssh_key_data ] && \
+                   [ -s /secrets/ssh/ssh_password ] && \
                    [ -s /secrets/config/git_repo_url ] && \
                    [ -s /secrets/config/git_branch ]; then
                   echo "All secrets are available and non-empty"
@@ -515,6 +519,7 @@ extraDeploy:
                 [ ! -s /secrets/netbox/token ] && echo "  - Missing: netbox token"
                 [ ! -s /secrets/ssh/username ] && echo "  - Missing: ssh username"
                 [ ! -s /secrets/ssh/ssh_key_data ] && echo "  - Missing: ssh key"
+                [ ! -s /secrets/ssh/ssh_password ] && echo "  - Missing: ssh password"
                 [ ! -s /secrets/config/git_repo_url ] && echo "  - Missing: git repo url"
                 [ ! -s /secrets/config/git_branch ] && echo "  - Missing: git branch"
                 exit 1
@@ -547,7 +552,7 @@ extraDeploy:
             - name: awx-config
               mountPath: /secrets/config
               readOnly: true
-            
+
             resources:
               requests:
                 memory: "256Mi"
