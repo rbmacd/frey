@@ -152,7 +152,7 @@ echo "============================"
 echo ""
 
 # Seed vault with initial secrets
-vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="$NETBOX_URL"
+vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="netbox.netbox.svc.cluster.local" #Note the hardcoded host URL!  This is for internal cluster access from AWX->NetBox
 vault kv put secret/frey/services/awx/admin password="$AWX_ADMIN_PASSWORD"
 vault kv put secret/frey/services/awx/ssh username="$AWX_SSH_USERNAME" private_key="$(cat $SSH_KEY_PATH)" ssh_password="$AWX_SSH_PASSWORD"
 vault kv put secret/frey/services/awx/config git_repo_url="$REPO_URL" git_branch="$BRANCH_NAME"
@@ -226,4 +226,4 @@ echo ""
 
 # Add repo and install AWX operator using Helm chart
 helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm
-helm install --namespace awx-operator --create-namespace awx-operator awx-operator/awx-operator --timeout $AWX_HELM_TIMEOUT --debug -f services/awx/frey-awx-values.yaml
+envsubst '${AWX_URL}' < services/awx/frey-awx-values.yaml | helm install --namespace awx-operator --create-namespace awx-operator awx-operator/awx-operator --timeout $AWX_HELM_TIMEOUT --debug -f -
