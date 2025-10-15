@@ -1,8 +1,8 @@
 ---
 plugin: netbox.netbox.nb_inventory
-api_endpoint: "{{ lookup('env', 'NETBOX_API') }}"
-token: "{{ lookup('env', 'NETBOX_TOKEN') }}"
-validate_certs: true
+#api_endpoint: "{{ lookup('env', 'NETBOX_API') }}"
+#token: "{{ lookup('env', 'NETBOX_TOKEN') }}"
+validate_certs: false
 config_context: false
 flatten_custom_fields: true
 
