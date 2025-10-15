@@ -1,0 +1,63 @@
+# .github/workflows/build-ee.yml
+# For use in existing project repo with multiple components
+
+name: Build Execution Environment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'execution-environment/**'        # Only trigger on EE file changes
+      - '.github/workflows/build-ee.yml'  # Or if workflow changes
+  workflow_dispatch:                      # Allow manual trigger anytime
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-awx-netbox-ee
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install ansible-builder
+        run: pip install ansible-builder
+      
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build execution environment
+        working-directory: execution-environment
+        run: |
+          ansible-builder build \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --container-runtime docker \
+            --verbosity 3
+      
+      - name: Push images
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      
+      - name: Test execution environment
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            ansible-galaxy collection list | grep netbox
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            pip list | grep pynetbox

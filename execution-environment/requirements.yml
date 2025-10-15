@@ -1,0 +1,29 @@
+# requirements.yml
+# Ansible Galaxy collections to install in the execution environment
+
+---
+collections:
+  # NetBox collection for dynamic inventory
+  - name: netbox.netbox
+    version: ">=3.19.0"
+  
+  # Kubernetes collection for K8s resource management
+  - name: kubernetes.core
+    version: ">=3.2.0"
+  
+  # Cloud collections (optional, add as needed)
+  - name: community.general
+    version: ">=9.5.0"
+  
+  - name: ansible.posix
+    version: ">=1.6.0"
+  
+  # Network collections (optional, add based on your network devices)
+  # - name: cisco.ios
+  #   version: ">=8.0.0"
+  # - name: cisco.nxos
+  #   version: ">=8.1.0"
+  # - name: arista.eos
+  #   version: ">=9.0.0"
+  # - name: junipernetworks.junos
+  #   version: ">=8.0.0"

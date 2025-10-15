@@ -34,14 +34,14 @@ sudo curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE="644" sh -
 ### VAULT COMMANDS
 docker run --cap-add=IPC_LOCK -e 'VAULT_LOCAL_CONFIG={"storage": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": { "address": "0.0.0.0:8200", "tls_disable": true}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h", "ui": true, "disable_mlock": true}' -p 8200:8200 hashicorp/vault server
 
-docker run -p 8200:8200 hashicorp/vault server -dev -dev-root-token-id="rootToken" &
+docker run -p 8200:8200 hashicorp/vault server -dev -dev-root-token-id="xxxx" &
 
 export VAULT_ADDR="http://127.0.0.1:8200"
-export VAULT_TOKEN="rootToken"
+export VAULT_TOKEN="xxxx"
 
 vault status
 vault secrets list
-vault kv put secret/frey/services/netbox/admin username='frey_admin' password='frey_password'
+vault kv put secret/frey/services/netbox/admin username='frey_admin' password='xxxx'
 
 
 ### EXTERNAL SECRETS OPERATOR

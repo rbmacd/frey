@@ -1,0 +1,25 @@
+# requirements.txt
+# Python packages required for NetBox and other integrations
+
+# NetBox API client - required for netbox.netbox collection
+pynetbox>=7.4.0
+
+# Network automation libraries
+netaddr>=1.3.0
+jmespath>=1.0.1
+
+# Kubernetes Python client
+kubernetes>=30.1.0
+openshift>=0.13.2
+
+# Common utilities
+requests>=2.32.0
+urllib3>=2.2.0
+jinja2>=3.1.4
+
+# JSON/YAML processing
+pyyaml>=6.0.2
+jsonschema>=4.23.0
+
+# Additional helpful libraries
+python-dotenv>=1.0.1

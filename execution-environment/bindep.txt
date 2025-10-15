@@ -1,0 +1,28 @@
+# bindep.txt
+# System-level package dependencies
+
+# Git for SCM operations
+git [platform:rpm]
+git [platform:dpkg]
+
+# Network tools
+iputils [platform:rpm]
+iputils-ping [platform:dpkg]
+bind-utils [platform:rpm]
+dnsutils [platform:dpkg]
+
+# SSL/TLS support
+ca-certificates [platform:rpm]
+ca-certificates [platform:dpkg]
+
+# Build tools (if needed for Python packages)
+gcc [compile platform:rpm]
+gcc [compile platform:dpkg]
+python3-devel [compile platform:rpm]
+python3-dev [compile platform:dpkg]
+
+# Additional utilities
+curl [platform:rpm]
+curl [platform:dpkg]
+wget [platform:rpm]
+wget [platform:dpkg]

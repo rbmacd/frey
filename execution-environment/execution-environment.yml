@@ -1,0 +1,38 @@
+# execution-environment.yml
+# Ansible Builder definition for NetBox-enabled execution environment
+
+---
+version: 3
+
+# Base image - use the official AWX EE as foundation
+images:
+  base_image:
+    name: quay.io/ansible/awx-ee:latest
+
+# Ansible collections to include
+dependencies:
+  galaxy: requirements.yml
+  python: requirements.txt
+  system: bindep.txt
+
+# Additional build steps (optional)
+additional_build_steps:
+  prepend_base:
+    - RUN whoami
+    - RUN cat /etc/os-release
+  
+  prepend_final:
+    - RUN echo "Installing additional tools..."
+    - RUN pip3 install --upgrade pip
+  
+  append_final:
+    - RUN ansible-galaxy collection list
+    - RUN pip3 list
+    - LABEL maintainer="rob@kyberisnetworks.com"
+    - LABEL description="AWX Execution Environment with NetBox support"
+    - LABEL version="1.0.0"
+
+# Build arguments
+build_arg_defaults:
+  ANSIBLE_GALAXY_CLI_COLLECTION_OPTS: '--pre'
+  PKGMGR_PRESERVE_CACHE: 'always'

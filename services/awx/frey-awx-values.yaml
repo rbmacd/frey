@@ -289,6 +289,10 @@ extraDeploy:
                 scm_clean: true
                 state: present
               register: project
+
+            - name: Remove custom execution environment task (not needed)
+              debug:
+                msg: "NetBox collection will be installed via collections/requirements.yml in the project"
             
             - name: Trigger project sync
               awx.awx.project_update:
@@ -299,6 +303,28 @@ extraDeploy:
                 project: "Infrastructure Automation"
                 wait: true
                 timeout: 300
+
+            - name: Verify project sync completed successfully
+              debug:
+                msg: |
+                  Project synced successfully!
+                  AWX should have installed collections from collections/requirements.yml
+                  Ensure your Git repo contains:
+                    - collections/requirements.yml (with netbox.netbox collection)
+                    - inventory/netbox_inventory.yml (NetBox inventory plugin config)
+
+            - name: Create custom execution environment with netbox collection
+              awx.awx.execution_environment:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "NetBox EE"
+                image: "quay.io/ansible/creator-ee:latest"
+                description: "Execution environment with netbox.netbox collection"
+                pull: "missing"
+                state: present
+              register: netbox_ee
             
             - name: Create Dynamic Inventory
               awx.awx.inventory:
@@ -324,11 +350,26 @@ extraDeploy:
                 source_project: "Infrastructure Automation"
                 source_path: "inventory/netbox_inventory.yml"
                 credential: "NetBox Production"
+                execution_environment: "NetBox EE"
                 overwrite: true
                 overwrite_vars: true
                 update_on_launch: true
                 update_cache_timeout: 0
                 state: present
+              register: inventory_source_result
+
+            - name: Display inventory source configuration
+              debug:
+                msg: |
+                  Inventory source created with:
+                  - Project: Infrastructure Automation
+                  - Path: inventory/netbox_inventory.yml
+                  - Credential: NetBox Production (should inject NETBOX_API and NETBOX_TOKEN)
+                  - NetBox URL from credential: {{ netbox_url }}
+            
+            - name: Wait for project files to be available
+              pause:
+                seconds: 5
             
             - name: Perform initial NetBox inventory sync
               awx.awx.inventory_source_update:
@@ -340,6 +381,30 @@ extraDeploy:
                 inventory: "NetBox Dynamic Inventory"
                 wait: true
                 timeout: 300
+              register: inventory_sync_result
+              failed_when: false
+            
+            - name: Display inventory sync result
+              debug:
+                var: inventory_sync_result
+            
+            - name: Fail if inventory sync failed
+              fail:
+                msg: |
+                  NetBox inventory sync failed!
+                  Status: {{ inventory_sync_result.status | default('unknown') }}
+                  
+                  Check the AWX UI at {{ awx_host }}/api/v2/inventory_updates/{{ inventory_sync_result.id | default('') }}/stdout/
+                  
+                  Common issues:
+                  - NetBox URL is incorrect: {{ lookup('env', 'NETBOX_API') | default('not set') }}
+                  - NetBox token is invalid
+                  - NetBox is not reachable from AWX pods
+                  - NetBox inventory file path is wrong: inventory/netbox_inventory.yml
+                  - Required netbox.netbox collection is not in execution environment
+              when: 
+                - inventory_sync_result.status is defined
+                - inventory_sync_result.status == 'failed'
             
             - name: Create example Job Template for SSH-based hosts
               awx.awx.job_template:
