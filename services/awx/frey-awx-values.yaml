@@ -438,7 +438,7 @@ extraDeploy:
                 organization: "Default"
                 inventory: "NetBox Dynamic Inventory"
                 project: "Infrastructure Automation"
-                playbook: "playbooks/backup_configs.yml"
+                playbook: "ansible-playbooks/playbooks/backup_configs.yml"
                 credentials:
                   - "Network Device Password"
                 ask_limit_on_launch: true

@@ -19,7 +19,7 @@ echo
 read -p "Enter NetBox admin e-mail address to store in Vault: " NETBOX_ADMIN_EMAIL
 
 # Prompt for NetBox ingress hostname to define in helm chart values
-read -p "Enter NetBox ingress URL: " NETBOX_URL
+read -p "Enter NetBox ingress URL: " NETBOX_URL && export NETBOX_URL
 
 # Generate NetBox API token
 export NETBOX_APITOKEN=$(openssl rand -hex 20)
@@ -30,7 +30,7 @@ read -s -p "Enter AWX admin password to store in Vault: " AWX_ADMIN_PASSWORD
 echo
 
 # Prompt for AWX ingress hostname to define in helm chart values
-read -p "Enter AWX ingress URL: " AWX_URL
+read -p "Enter AWX ingress URL: " AWX_URL && export AWX_URL
 
 # Prompt user for SSH AWX network credential username
 read -p "Enter username for AWX's network SSH credential type: " AWX_SSH_USERNAME
@@ -152,7 +152,7 @@ echo "============================"
 echo ""
 
 # Seed vault with initial secrets
-vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="https://netbox.netbox.svc.cluster.local" #Note the hardcoded host URL!  This is for internal cluster access from AWX->NetBox
+vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="http://netbox.netbox.svc.cluster.local" #Note the hardcoded host URL!  This is for internal cluster access from AWX->NetBox
 vault kv put secret/frey/services/awx/admin password="$AWX_ADMIN_PASSWORD"
 vault kv put secret/frey/services/awx/ssh username="$AWX_SSH_USERNAME" private_key="$(cat $SSH_KEY_PATH)" ssh_password="$AWX_SSH_PASSWORD"
 vault kv put secret/frey/services/awx/config git_repo_url="$REPO_URL" git_branch="$BRANCH_NAME"
@@ -205,9 +205,7 @@ echo ""
 
 # Install NetBox using netbox-chart
 
-echo "DEBUG: NETBOX_URL = $NETBOX_URL"
 #helm install netbox oci://ghcr.io/netbox-community/netbox-chart/netbox --create-namespace --namespace netbox -f services/netbox/frey-netbox-values.yaml
-sleep 5 #testing.  trying to determine why we see random failures where the NETBOX_URL value is not properly inserted and/or parsed in the helm values file
 envsubst '${NETBOX_URL}' < services/netbox/frey-netbox-values.yaml | helm install netbox oci://ghcr.io/netbox-community/netbox-chart/netbox --create-namespace --namespace netbox -f -
 
 ### AWX ###
@@ -226,4 +224,4 @@ echo ""
 
 # Add repo and install AWX operator using Helm chart
 helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm
-envsubst '${AWX_URL}' < services/awx/frey-awx-values.yaml | helm install --namespace awx-operator --create-namespace awx-operator awx-operator/awx-operator --timeout $AWX_HELM_TIMEOUT --debug -f -
+envsubst '${AWX_URL}' < services/awx/frey-awx-values.yaml | helm install --namespace awx-operator --create-namespace awx-operator awx-operator/awx-operator --timeout $AWX_HELM_TIMEOUT -f -
