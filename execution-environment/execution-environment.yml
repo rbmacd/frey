@@ -10,6 +10,7 @@ images:
 
 dependencies:
   galaxy: requirements.yml
+  system: bindep.txt
   ansible_core:
     package_pip: ansible-core
   ansible_runner:
