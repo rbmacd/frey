@@ -152,7 +152,7 @@ echo "============================"
 echo ""
 
 # Seed vault with initial secrets
-vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="netbox.netbox.svc.cluster.local" #Note the hardcoded host URL!  This is for internal cluster access from AWX->NetBox
+vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="https://netbox.netbox.svc.cluster.local" #Note the hardcoded host URL!  This is for internal cluster access from AWX->NetBox
 vault kv put secret/frey/services/awx/admin password="$AWX_ADMIN_PASSWORD"
 vault kv put secret/frey/services/awx/ssh username="$AWX_SSH_USERNAME" private_key="$(cat $SSH_KEY_PATH)" ssh_password="$AWX_SSH_PASSWORD"
 vault kv put secret/frey/services/awx/config git_repo_url="$REPO_URL" git_branch="$BRANCH_NAME"

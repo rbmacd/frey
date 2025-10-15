@@ -418,7 +418,7 @@ extraDeploy:
                 organization: "Default"
                 inventory: "NetBox Dynamic Inventory"
                 project: "Infrastructure Automation"
-                playbook: "playbooks/gather_facts.yml"
+                playbook: "ansible-playbooks/playbooks/gather_facts.yml"
                 credentials:
                   - "Ansible SSH Key"
                 ask_limit_on_launch: true
