@@ -1,6 +1,0 @@
-# requirements.yml
-# Ansible Galaxy collections to install in the execution environment
-
----
-collections:
-  - name: netbox.netbox
