@@ -319,10 +319,10 @@ extraDeploy:
                 controller_username: "{{ awx_username }}"
                 controller_password: "{{ awx_password }}"
                 validate_certs: false
-                name: "NetBox EE"
-                image: "quay.io/ansible/creator-ee:latest"
-                description: "Execution environment with netbox.netbox collection"
-                pull: "missing"
+                name: "Frey NetBox EE"
+                image: "ghcr.io/rbmacd/frey-awx-netbox-ee:latest"
+                description: "Custom execution environment with netbox.netbox collection and pynetbox package"
+                pull: "always"
                 state: present
               register: netbox_ee
             
@@ -348,9 +348,9 @@ extraDeploy:
                 inventory: "NetBox Dynamic Inventory"
                 source: "scm"
                 source_project: "Infrastructure Automation"
-                source_path: "inventory/netbox_inventory.yml"
+                source_path: "ansible-playbooks/inventory/netbox_inventory.yml"
                 credential: "NetBox Production"
-                execution_environment: "NetBox EE"
+                execution_environment: "Frey NetBox EE"
                 overwrite: true
                 overwrite_vars: true
                 update_on_launch: true
