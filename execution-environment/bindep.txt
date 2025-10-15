@@ -1,2 +1,0 @@
-# No additional system packages required
-# Base AWX EE image already has everything we need
