@@ -13,7 +13,13 @@ images:
 dependencies:
   galaxy: requirements.yml
   python: requirements.txt
-  system: bindep.txt
+  ansible_core:
+    package_pip: ansible-core
+  ansible_runner:
+    package_pip: ansible-runner
+
+options:
+  package_manager_path: /usr/bin/microdnf
 
 # Additional build steps (optional)
 additional_build_steps:
