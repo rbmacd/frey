@@ -1,0 +1,136 @@
+!
+! BGP Configuration
+{% if netbox_config_context.bgp is defined %}
+{% set bgp = netbox_config_context.bgp %}
+
+! BGP Loopback (if different from VTEP)
+{% if bgp.router_id_loopback is defined %}
+interface Loopback{{ bgp.router_id_loopback.id }}
+   description BGP Router ID
+   ip address {{ bgp.router_id_loopback.ip }}
+!
+{% endif %}
+
+! Prefix lists (must be defined before route-maps)
+{% if bgp.prefix_lists is defined %}
+{% for pl in bgp.prefix_lists %}
+ip prefix-list {{ pl.name }}
+   {% for entry in pl.entries %}
+   seq {{ entry.sequence }} {{ entry.action }} {{ entry.prefix }}
+   {% endfor %}
+!
+{% endfor %}
+{% endif %}
+
+! Route-map for BGP (defined after prefix-lists)
+{% if bgp.route_maps is defined %}
+{% for rm in bgp.route_maps %}
+route-map {{ rm.name }} {{ rm.action }} {{ rm.sequence }}
+   {% for statement in rm.statements %}
+   {{ statement }}
+   {% endfor %}
+!
+{% endfor %}
+{% endif %}
+
+! BGP Configuration
+router bgp {{ bgp.asn }}
+   router-id {{ bgp.router_id }}
+   {% if bgp.maximum_paths is defined %}
+   maximum-paths {{ bgp.maximum_paths }}
+   {% endif %}
+   {% if bgp.ecmp_paths is defined %}
+   maximum-paths {{ bgp.ecmp_paths }} ecmp {{ bgp.ecmp_paths }}
+   {% endif %}
+   {% if bgp.distance is defined %}
+   distance bgp {{ bgp.distance.external }} {{ bgp.distance.internal }} {{ bgp.distance.local }}
+   {% endif %}
+   !
+   {% if bgp.peer_groups is defined %}
+   {% for pg in bgp.peer_groups %}
+   neighbor {{ pg.name }} peer group
+   {% if pg.remote_as is defined %}
+   neighbor {{ pg.name }} remote-as {{ pg.remote_as }}
+   {% endif %}
+   {% if pg.update_source is defined %}
+   neighbor {{ pg.name }} update-source {{ pg.update_source }}
+   {% endif %}
+   {% if pg.ebgp_multihop is defined %}
+   neighbor {{ pg.name }} ebgp-multihop {{ pg.ebgp_multihop }}
+   {% endif %}
+   {% if pg.send_community is defined %}
+   neighbor {{ pg.name }} send-community{% if pg.send_community == 'extended' %} extended{% elif pg.send_community == 'both' %} extended{% endif %}
+   {% endif %}
+   {% if pg.next_hop_self is defined and pg.next_hop_self %}
+   neighbor {{ pg.name }} next-hop-self
+   {% endif %}
+   !
+   {% endfor %}
+   {% endif %}
+   !
+   {% if bgp.neighbors is defined %}
+   {% for neighbor in bgp.neighbors %}
+   neighbor {{ neighbor.ip }} peer group {{ neighbor.peer_group | default('') }}
+   {% if neighbor.remote_as is defined %}
+   neighbor {{ neighbor.ip }} remote-as {{ neighbor.remote_as }}
+   {% endif %}
+   {% if neighbor.description is defined %}
+   neighbor {{ neighbor.ip }} description {{ neighbor.description }}
+   {% endif %}
+   {% if neighbor.update_source is defined %}
+   neighbor {{ neighbor.ip }} update-source {{ neighbor.update_source }}
+   {% endif %}
+   !
+   {% endfor %}
+   {% endif %}
+   !
+   {% if bgp.redistribute is defined %}
+   {% for redist in bgp.redistribute %}
+   redistribute {{ redist.protocol }}{% if redist.route_map is defined %} route-map {{ redist.route_map }}{% endif %}
+   {% endfor %}
+   !
+   {% endif %}
+   !
+   {% if bgp.address_families is defined %}
+   {% for af in bgp.address_families %}
+   address-family {{ af.afi }} {{ af.safi }}
+      {% if af.neighbors is defined %}
+      {% for neighbor in af.neighbors %}
+      neighbor {{ neighbor.ip }} activate
+      {% if neighbor.route_map_in is defined %}
+      neighbor {{ neighbor.ip }} route-map {{ neighbor.route_map_in }} in
+      {% endif %}
+      {% if neighbor.route_map_out is defined %}
+      neighbor {{ neighbor.ip }} route-map {{ neighbor.route_map_out }} out
+      {% endif %}
+      {% if neighbor.send_community is defined %}
+      neighbor {{ neighbor.ip }} send-community{% if neighbor.send_community == 'extended' %} extended{% endif %}
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% if af.networks is defined %}
+      {% for network in af.networks %}
+      network {{ network.prefix }}{% if network.route_map is defined %} route-map {{ network.route_map }}{% endif %}
+      {% endfor %}
+      {% endif %}
+   {% endfor %}
+   {% endif %}
+   !
+   {% if bgp.evpn is defined %}
+   !
+   ! EVPN Configuration
+   address-family evpn
+      {% if bgp.evpn.neighbors is defined %}
+      {% for neighbor in bgp.evpn.neighbors %}
+      neighbor {{ neighbor.ip }} activate
+      {% if neighbor.encapsulation is defined %}
+      neighbor {{ neighbor.ip }} encapsulation {{ neighbor.encapsulation }}
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% if bgp.evpn.route_reflector_client is defined and bgp.evpn.route_reflector_client %}
+      neighbor {{ bgp.evpn.route_reflector_peer_group }} route-reflector-client
+      {% endif %}
+   {% endif %}
+!
+{% endif %}

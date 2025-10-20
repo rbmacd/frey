@@ -1,0 +1,15 @@
+---
+# ============================================
+# ANSIBLE CONNECTION PARAMETERS
+# Arista EOS platform settings
+# ============================================
+
+# How Ansible connects to EOS devices
+ansible_network_os: eos
+ansible_connection: network_cli
+ansible_become: yes
+ansible_become_method: enable
+
+# Connection timeouts (optional)
+ansible_command_timeout: 30
+ansible_connect_timeout: 30

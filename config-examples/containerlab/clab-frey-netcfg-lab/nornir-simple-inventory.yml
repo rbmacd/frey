@@ -1,0 +1,21 @@
+---
+leaf01:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.4
+leaf02:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.5
+spine01:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.2
+spine02:
+    username: admin
+    password: admin
+    platform: ceos
+    hostname: 172.20.20.3

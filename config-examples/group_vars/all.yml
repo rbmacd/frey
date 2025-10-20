@@ -1,0 +1,19 @@
+---
+# ============================================
+# NetBox is the Source of Truth
+# ============================================
+# All network configuration data should be defined in NetBox config context:
+#   - DNS servers (per site or device)
+#   - NTP servers (per site or device)
+#   - Syslog servers (per site or device)
+#   - SNMP settings (per site or device)
+#   - Timezone (per site or device)
+#   - VLANs, interfaces, BGP, etc.
+#
+# This file intentionally left empty.
+# If you find yourself adding data here, ask: "Should this be in NetBox?"
+#
+# The ONLY exception might be:
+#   - Organizational metadata (project_name, contact_email, etc.)
+#   - Values that are truly universal and never change
+# ============================================

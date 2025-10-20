@@ -1,0 +1,9 @@
+!
+! VLAN Configuration
+{% if netbox_config_context.vlans is defined %}
+{% for vlan in netbox_config_context.vlans %}
+vlan {{ vlan.vid }}
+   name {{ vlan.name }}
+!
+{% endfor %}
+{% endif %}

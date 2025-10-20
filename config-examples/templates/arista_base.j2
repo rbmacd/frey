@@ -1,0 +1,75 @@
+!
+! Hostname
+hostname {{ inventory_hostname }}
+!
+! DNS Configuration
+{% if netbox_config_context.dns_servers is defined %}
+{% for dns in netbox_config_context.dns_servers %}
+ip name-server vrf default {{ dns }}
+{% endfor %}
+{% endif %}
+!
+! NTP Configuration
+{% if netbox_config_context.ntp_servers is defined %}
+{% for ntp in netbox_config_context.ntp_servers %}
+ntp server {{ ntp }}
+{% endfor %}
+{% endif %}
+!
+! Timezone
+clock timezone {{ netbox_config_context.timezone | default('UTC') }}
+!
+! Banner - Customized by device role
+banner motd
+{% if 'device_roles_border' in group_names %}
+*****************************************
+* BORDER ROUTER - PCI COMPLIANT ZONE
+* Unauthorized access is prohibited
+* All activity is logged and audited
+*****************************************
+{% elif 'device_roles_spine' in group_names %}
+*****************************************
+* SPINE SWITCH - Unauthorized access prohibited
+* All activity is logged and monitored
+*****************************************
+{% elif 'device_roles_leaf' in group_names %}
+*****************************************
+* LEAF SWITCH - Unauthorized access prohibited
+* All activity is logged and monitored
+*****************************************
+{% else %}
+*****************************************
+* Unauthorized access is prohibited
+* All activity is logged and monitored
+*****************************************
+{% endif %}
+EOF
+!
+! SNMP Configuration
+{% if netbox_config_context.snmp_community is defined %}
+snmp-server community {{ netbox_config_context.snmp_community }} ro
+{% endif %}
+{% if netbox_config_context.snmp_location is defined %}
+snmp-server location {{ netbox_config_context.snmp_location }}
+{% endif %}
+!
+! Logging
+{% if netbox_config_context.syslog_servers is defined %}
+{% for syslog in netbox_config_context.syslog_servers %}
+logging host {{ syslog }}
+{% endfor %}
+{% endif %}
+logging buffered 10000
+!
+! Users
+username admin privilege 15 role network-admin secret admin
+!
+! AAA
+aaa authorization exec default local
+!
+! Management Interface
+interface Management1
+   description Management Interface
+   vrf default
+   ip address {{ ansible_host }}/24
+!

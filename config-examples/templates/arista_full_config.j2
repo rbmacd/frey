@@ -1,0 +1,15 @@
+! Device: {{ inventory_hostname }}
+! Generated: {{ ansible_date_time.iso8601 }}
+! Role: {{ device_role | default('unknown') }}
+!
+{{ lookup('template', 'arista_base.j2') }}
+!
+{{ lookup('template', 'arista_vlans.j2') }}
+!
+{{ lookup('template', 'arista_interfaces.j2') }}
+!
+{{ lookup('template', 'arista_vxlan.j2') }}
+!
+{{ lookup('template', 'arista_bgp.j2') }}
+!
+end

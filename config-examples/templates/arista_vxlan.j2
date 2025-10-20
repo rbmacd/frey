@@ -1,0 +1,34 @@
+!
+! VXLAN Configuration
+{% if netbox_config_context.vxlan is defined %}
+{% set vxlan = netbox_config_context.vxlan %}
+
+! Loopback for VTEP
+{% if vxlan.vtep_loopback is defined %}
+interface Loopback{{ vxlan.vtep_loopback.id }}
+   description VTEP Loopback
+   ip address {{ vxlan.vtep_loopback.ip }}
+!
+{% endif %}
+
+! VXLAN interface
+interface Vxlan1
+   description VXLAN Tunnel Interface
+   {% if vxlan.vtep_source_interface is defined %}
+   vxlan source-interface {{ vxlan.vtep_source_interface }}
+   {% endif %}
+   {% if vxlan.udp_port is defined %}
+   vxlan udp-port {{ vxlan.udp_port }}
+   {% endif %}
+   {% if vxlan.vlan_vni_mappings is defined %}
+   {% for mapping in vxlan.vlan_vni_mappings %}
+   vxlan vlan {{ mapping.vlan }} vni {{ mapping.vni }}
+   {% endfor %}
+   {% endif %}
+   {% if vxlan.flood_vtep_list is defined %}
+   {% for vlan_flood in vxlan.flood_vtep_list %}
+   vxlan flood vtep {{ vlan_flood.vteps | join(' ') }}
+   {% endfor %}
+   {% endif %}
+!
+{% endif %}

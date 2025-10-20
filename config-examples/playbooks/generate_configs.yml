@@ -1,0 +1,71 @@
+---
+- name: Generate Configurations from NetBox Data
+  hosts: all  # AWX limits to inventory selection
+  gather_facts: yes
+  
+  vars:
+    config_dir: "{{ playbook_dir }}/../configs/generated"
+  
+  tasks:
+    - name: Create generated configs directory
+      ansible.builtin.file:
+        path: "{{ config_dir }}"
+        state: directory
+      delegate_to: localhost
+      run_once: true
+
+    - name: Verify required NetBox data is present
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname is defined
+          - ansible_host is defined
+          - netbox_config_context is defined
+        fail_msg: |
+          Missing required data from NetBox for {{ inventory_hostname }}.
+          Ensure device has config context defined in NetBox.
+        success_msg: "NetBox data validated for {{ inventory_hostname }}"
+
+    - name: Validate required NetBox config context fields (optional but recommended)
+      ansible.builtin.assert:
+        that:
+          - netbox_config_context.ntp_servers is defined
+          - netbox_config_context.dns_servers is defined
+          - netbox_config_context.syslog_servers is defined
+        fail_msg: |
+          Missing required fields in NetBox config context for {{ inventory_hostname }}.
+          Required fields: ntp_servers, dns_servers, syslog_servers
+          Please add these to the device or site config context in NetBox.
+      when: validate_netbox_data | default(true)
+
+    - name: Display device information from NetBox
+      ansible.builtin.debug:
+        msg: |
+          Device: {{ inventory_hostname }}
+          Role: {{ group_names | select('match', '^device_roles_') | map('regex_replace', '^device_roles_', '') | first | default('unknown') }}
+          Site: {{ group_names | select('match', '^sites_') | map('regex_replace', '^sites_', '') | first | default('unknown') }}
+          Platform: {{ group_names | select('match', '^platforms_') | map('regex_replace', '^platforms_', '') | first | default('unknown') }}
+
+    - name: Set device role fact
+      ansible.builtin.set_fact:
+        device_role: "{{ group_names | select('match', '^device_roles_') | map('regex_replace', '^device_roles_', '') | first | default('unknown') }}"
+
+    - name: Display what data is available from NetBox
+      ansible.builtin.debug:
+        msg: |
+          NetBox config context data:
+          - VLANs: {{ netbox_config_context.vlans | default([]) | length }} configured
+          - Interfaces: {{ netbox_config_context.interfaces | default([]) | length }} configured
+          - BGP: {{ 'configured' if netbox_config_context.bgp.asn is defined else 'not configured' }}
+          - NTP: {{ netbox_config_context.ntp_servers | default([]) | length }} servers
+          - DNS: {{ netbox_config_context.dns_servers | default([]) | length }} servers
+          - Syslog: {{ netbox_config_context.syslog_servers | default([]) | length }} servers
+
+    - name: Generate configuration from template
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/arista_full_config.j2"
+        dest: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
+      delegate_to: localhost
+
+    - name: Display generated config location
+      ansible.builtin.debug:
+        msg: "Configuration generated at {{ config_dir }}/{{ inventory_hostname }}.cfg"

@@ -1,0 +1,5 @@
+ansible
+pynetbox
+jinja2
+netaddr
+pyyaml

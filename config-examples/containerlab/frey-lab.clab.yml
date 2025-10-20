@@ -1,0 +1,35 @@
+---
+name: frey-netcfg-lab
+
+mgmt:
+  network: frey-mgmt
+  ipv4-subnet: 172.20.20.0/24
+
+topology:
+  nodes:
+    spine01:
+      kind: ceos
+      image: ceos:4.34.2.1F
+      mgmt-ipv4: 172.20.20.2
+      
+    spine02:
+      kind: ceos
+      image: ceos:4.34.2.1F
+      mgmt-ipv4: 172.20.20.3
+      
+    leaf01:
+      kind: ceos
+      image: ceos:4.34.2.1F
+      mgmt-ipv4: 172.20.20.4
+      
+    leaf02:
+      kind: ceos
+      image: ceos:4.34.2.1F
+      mgmt-ipv4: 172.20.20.5
+
+  links:
+    # Spine to Leaf connections (IP Fabric Underlay)
+    - endpoints: ["spine01:eth1", "leaf01:eth1"]
+    - endpoints: ["spine01:eth2", "leaf02:eth1"]
+    - endpoints: ["spine02:eth1", "leaf01:eth2"]
+    - endpoints: ["spine02:eth2", "leaf02:eth2"]
