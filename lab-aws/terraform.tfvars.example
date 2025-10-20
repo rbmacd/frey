@@ -1,0 +1,45 @@
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars to version control
+
+# AWS Region
+aws_region = "us-east-1"
+
+# Project name (used for resource tagging)
+project_name = "containerlab"
+
+# Name of your existing AWS SSH key pair
+# Create one in AWS Console: EC2 > Key Pairs
+ssh_key_name = "my-key-pair"
+
+# Your public IP address for SSH access (in CIDR notation)
+# Find your IP: curl ifconfig.me
+admin_ip = "203.0.113.45/32"
+
+# VPN server instance type (always on-demand for reliability)
+# Default t3.micro is recommended for most use cases
+# Only change if you need more resources for VPN server
+vpn_instance_type = "t3.micro"
+
+# Lab server instance type
+# Options by RAM:
+#   r7i.xlarge   = 32 GB RAM, 4 vCPU  (good for 10-15 cEOS nodes)
+#   r7i.2xlarge  = 64 GB RAM, 8 vCPU  (good for 20-30 cEOS nodes)
+#   r7iz.2xlarge = 64 GB RAM, 8 vCPU  (higher CPU freq, best performance)
+#   r6i.xlarge   = 32 GB RAM, 4 vCPU  (previous gen, cheaper)
+#   r5.xlarge    = 32 GB RAM, 4 vCPU  (older gen, even cheaper)
+# 
+# NOTE: Lab server uses SPOT instances for 60-70% cost savings
+lab_instance_type = "r7i.xlarge"
+
+# Maximum spot price for LAB SERVER (leave empty for on-demand price)
+# Empty string means accept up to on-demand price
+# Set a specific price to limit costs, e.g., "0.15"
+#
+# The VPN server always uses on-demand (t3.micro) for reliability
+# Recommended: Leave empty to accept spot pricing up to on-demand
+spot_max_price = ""
+
+# Root disk size in GB
+# cEOS images are ~1.5 GB each
+# Recommended: 100 GB for ~20 nodes, 200 GB for larger deployments
+lab_disk_size = 100

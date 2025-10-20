@@ -1,0 +1,40 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+
+# SSH keys
+*.pem
+*.key
+*.pub
+
+# WireGuard configs
+*.conf
+!wireguard-setup.sh
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*.backup
+
+# Output files
+connection-info.txt
