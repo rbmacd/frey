@@ -1,0 +1,26 @@
+# Backend Configuration for Terraform S3 State
+# 
+# This file allows you to configure the S3 backend without hardcoding values in backend.tf
+#
+# Usage:
+#   1. Copy this file: cp backend.tfvars.example backend.tfvars
+#   2. Update the bucket name with your AWS account ID
+#   3. Initialize with: terraform init -backend-config=backend.tfvars
+#
+# Note: backend.tfvars is git-ignored for security
+
+# S3 bucket name (replace with your account ID)
+# Get your account ID: aws sts get-caller-identity --query Account --output text
+bucket = "containerlab-tfstate-123456789012"
+
+# State file key/path within the bucket
+key = "infrastructure/terraform.tfstate"
+
+# AWS region
+region = "us-east-1"
+
+# Enable encryption
+encrypt = true
+
+# DynamoDB table for state locking
+dynamodb_table = "containerlab-tfstate-lock"

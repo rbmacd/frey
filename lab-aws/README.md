@@ -101,11 +101,19 @@ lab_instance_type = "r7i.2xlarge"  # For larger topologies
 | Lab Server | r7iz.2xlarge | Spot | $0.19-0.28 | Highest performance |
 | EBS Storage | gp3 100GB | N/A | $0.0114 | $8/month |
 | Elastic IP | 1 IP | N/A | $0.0025 | $1.80/month |
+| **Backend (S3 + DynamoDB)** | N/A | N/A | **~$0.0003** | **~$0.02/month** |
 | **TOTAL (defaults)** | | **Mixed** | **$0.10-0.14/hr** | **Using r7i.xlarge spot + t3.micro** |
+
+**Backend Cost Breakdown:**
+- S3 storage: ~$0.01/month (state file is tiny, <1MB)
+- S3 requests: <$0.01/month (only during apply/destroy)
+- DynamoDB: ~$0.01/month (pay-per-request, minimal usage)
+- **Total backend: ~$0.02/month** (cheaper than 4 minutes of r7i.xlarge)
 
 **Instance Strategy:**
 - **VPN Server**: On-demand for stable VPN access (interruptions = no connectivity)
 - **Lab Server**: Spot for maximum cost savings (interruptions rare and acceptable)
+- **Backend**: Negligible cost, prevents orphaned resources
 - **Both are configurable** via terraform.tfvars
 
 ### Cost Scenarios
@@ -167,8 +175,214 @@ Spot prices vary by region. Here are typical spot prices for r7i.xlarge:
 3. **AWS CLI** configured with credentials
 4. **SSH Key Pair** created in AWS Console
 5. **WireGuard Client** for VPN access
+6. **S3 Backend** (recommended) - see [Backend Setup](#backend-setup) below
+
+## Backend Setup
+
+### Why Use S3 Backend?
+
+For ephemeral infrastructure like this, S3 backend is **strongly recommended** despite being temporary:
+
+**The Problem:**
+```bash
+# You deploy infrastructure
+terraform apply
+
+# Your laptop crashes, state file lost
+# Infrastructure still running: $0.12-0.30/hour
+# terraform destroy won't work - Terraform doesn't know what exists!
+# Result: Manual cleanup or wasted $$
+```
+
+**The Solution: S3 Backend**
+- **State survives** laptop crashes, terminal closures
+- **Destroy from any machine** - state is in S3, not local disk
+- **State locking** prevents concurrent modifications (via DynamoDB)
+- **State versioning** allows rollback if corrupted
+- **Cost:** ~$0.02/month (pays for itself if it saves you from ONE forgotten instance for 1-2 hours)
+
+### Quick Setup (5 minutes)
+
+**Option 1: Automated Script (Recommended)**
+
+```bash
+# Make setup script executable
+chmod +x setup-backend.sh
+
+# Run setup (creates S3 bucket + DynamoDB table)
+./setup-backend.sh
+
+# Update backend.tf with your account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+sed -i "s/<ACCOUNT_ID>/${ACCOUNT_ID}/g" backend.tf
+
+# Initialize Terraform with backend
+terraform init
+```
+
+**Option 2: Manual Setup**
+
+```bash
+# Get your AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+echo "Your Account ID: $ACCOUNT_ID"
+
+# Create S3 bucket
+aws s3api create-bucket \
+  --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
+  --region us-east-1
+
+# Enable versioning
+aws s3api put-bucket-versioning \
+  --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
+  --versioning-configuration Status=Enabled
+
+# Enable encryption
+aws s3api put-bucket-encryption \
+  --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
+  --server-side-encryption-configuration '{
+    "Rules": [{
+      "ApplyServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+      }
+    }]
+  }'
+
+# Create DynamoDB table for locking
+aws dynamodb create-table \
+  --table-name containerlab-tfstate-lock \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
+
+# Update backend.tf with your account ID
+sed -i "s/<ACCOUNT_ID>/${ACCOUNT_ID}/g" backend.tf
+
+# Initialize Terraform
+terraform init
+```
+
+### Backend Configuration Options
+
+**Method 1: Direct in backend.tf (Simpler)**
+- Edit `backend.tf` and replace `<ACCOUNT_ID>` with your account ID
+- Run `terraform init`
+
+**Method 2: Using backend.tfvars (More Flexible)**
+```bash
+# Copy example config
+cp backend.tfvars.example backend.tfvars
+
+# Edit with your account ID
+vim backend.tfvars
+
+# Initialize with config file
+terraform init -backend-config=backend.tfvars
+```
+
+### Migrating Existing Local State
+
+If you already have local state and want to migrate to S3:
+
+```bash
+# Setup backend first (run setup-backend.sh)
+./setup-backend.sh
+
+# Initialize - Terraform will detect existing state
+terraform init
+
+# Answer "yes" when prompted to migrate state
+```
+
+### Backend Benefits You'll Use
+
+**1. Destroy from Any Machine**
+```bash
+# Friday: Deploy from desktop
+desktop$ terraform apply
+
+# Monday: Destroy from laptop
+laptop$ git pull
+laptop$ terraform init  # Downloads state from S3
+laptop$ terraform destroy  # Works perfectly!
+```
+
+**2. State Locking (Prevents Corruption)**
+```bash
+# Terminal 1:
+terraform apply  # Locks state
+
+# Terminal 2 (you forgot Terminal 1):
+terraform apply
+# Error: State locked by another process
+# Saved you from corrupting state!
+```
+
+**3. State Versioning (Time Machine)**
+```bash
+# View all state versions
+aws s3api list-object-versions \
+  --bucket containerlab-tfstate-${ACCOUNT_ID} \
+  --prefix infrastructure/terraform.tfstate
+
+# Restore previous version if needed
+aws s3api get-object \
+  --bucket containerlab-tfstate-${ACCOUNT_ID} \
+  --key infrastructure/terraform.tfstate \
+  --version-id <VERSION_ID> \
+  terraform.tfstate
+```
+
+**4. Cost Tracking**
+```bash
+# Monthly cost: ~$0.02
+# S3 storage: ~$0.01
+# DynamoDB: ~$0.01
+
+# Compare to: Forgetting r7i.xlarge for 1 hour = $0.27
+# ROI: Backend pays for itself many times over
+```
+
+### Skip Backend (Not Recommended)
+
+If you really want to skip S3 backend:
+
+```bash
+# Comment out or delete backend.tf
+mv backend.tf backend.tf.disabled
+
+# Initialize without backend
+terraform init
+
+# Remember: You MUST destroy in the same session/machine
+# State only exists locally on disk
+```
+
+**Risks of local state:**
+- Laptop crash = orphaned resources
+- Close terminal = can't destroy
+- Switch machines = state is on other computer
+- Disk corruption = manual AWS cleanup required
+
+For infrastructure that costs $0.12-0.30/hour, the $0.02/month insurance is worth it.
 
 ## Quick Start
+
+### 0. Setup Backend (Recommended First Step)
+
+```bash
+# Run automated backend setup
+chmod +x setup-backend.sh
+./setup-backend.sh
+
+# Update backend.tf with your account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+sed -i "s/<ACCOUNT_ID>/${ACCOUNT_ID}/g" backend.tf
+
+# Or use sed for macOS:
+# sed -i '' "s/<ACCOUNT_ID>/${ACCOUNT_ID}/g" backend.tf
+```
 
 ### 1. Clone and Configure
 
@@ -472,6 +686,90 @@ sudo wg-quick down ~/wireguard-containerlab.conf
 
 ## Troubleshooting
 
+### Backend Initialization Issues
+
+### Backend Initialization Issues
+
+**"Access Denied" Error**
+
+Common misconception: "Public access is blocked, so I can't access the bucket"
+
+**Reality:** "Block Public Access" only blocks anonymous/unauthenticated users. You access the bucket with your AWS credentials.
+
+```bash
+# Check your AWS credentials are configured
+aws sts get-caller-identity
+
+# If not configured:
+aws configure
+# Enter your Access Key ID and Secret Access Key
+
+# Test S3 access
+aws s3 ls s3://containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text)
+
+# If this works, Terraform will work too
+```
+
+**How Authentication Works:**
+- Terraform uses YOUR AWS credentials (from `~/.aws/credentials` or environment variables)
+- You make AUTHENTICATED requests to S3
+- AWS checks your IAM permissions (you own the bucket, so you have access)
+- "Block Public Access" doesn't affect authenticated requests
+
+**If truly denied:**
+```bash
+# Verify you have S3 permissions
+# Your IAM user needs: s3:ListBucket, s3:GetObject, s3:PutObject, s3:DeleteObject
+
+# Check your IAM user
+aws iam get-user
+
+# Attach necessary policy (if you have admin rights)
+aws iam attach-user-policy \
+  --user-name your-username \
+  --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
+```
+
+**Error: "bucket does not exist"**
+```bash
+# Run the backend setup script
+./setup-backend.sh
+
+# Or create bucket manually
+aws s3api create-bucket \
+  --bucket containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text) \
+  --region us-east-1
+```
+
+**Error: "table does not exist"**
+```bash
+# Create DynamoDB table
+aws dynamodb create-table \
+  --table-name containerlab-tfstate-lock \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
+```
+
+**Error: "state locked"**
+```bash
+# Check who has the lock
+terraform force-unlock -force <LOCK_ID>
+
+# Or check DynamoDB
+aws dynamodb scan --table-name containerlab-tfstate-lock
+```
+
+**Migrate from Local to S3 Backend:**
+```bash
+# With existing local state:
+terraform init  # Will prompt to migrate
+# Answer "yes" to copy state to S3
+
+# Verify state is in S3
+aws s3 ls s3://containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text)/infrastructure/
+```
+
 ### Lab Server Spot Instance Interruption
 
 Spot instances can be interrupted by AWS when capacity is needed (rare for r-family instances). If this happens:
@@ -595,6 +893,75 @@ terraform apply
 
 ## Advanced Configuration
 
+### Managing Multiple Environments
+
+Use workspaces or separate state files for different environments:
+
+```bash
+# Method 1: Terraform Workspaces
+terraform workspace new dev
+terraform workspace new prod
+terraform workspace select dev
+
+# Method 2: Different State Keys
+# Update backend.tf key for each environment:
+# dev: key = "dev/terraform.tfstate"
+# prod: key = "prod/terraform.tfstate"
+```
+
+### Backend State Management
+
+**List State Versions:**
+```bash
+# View all versions of your state file
+aws s3api list-object-versions \
+  --bucket containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text) \
+  --prefix infrastructure/terraform.tfstate
+```
+
+**Restore Previous State Version:**
+```bash
+# Download specific version
+aws s3api get-object \
+  --bucket containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text) \
+  --key infrastructure/terraform.tfstate \
+  --version-id <VERSION_ID> \
+  terraform.tfstate.backup
+
+# Review the backup
+terraform show terraform.tfstate.backup
+
+# If good, replace current state
+mv terraform.tfstate.backup terraform.tfstate
+terraform refresh
+```
+
+**Unlock State (If Locked Accidentally):**
+```bash
+# Force unlock if apply was interrupted
+terraform force-unlock <LOCK_ID>
+
+# Or remove lock manually from DynamoDB
+aws dynamodb delete-item \
+  --table-name containerlab-tfstate-lock \
+  --key '{"LockID": {"S": "containerlab-tfstate-<ACCOUNT_ID>/infrastructure/terraform.tfstate"}}'
+```
+
+**Clean Up Backend (When Done with Project):**
+```bash
+# First, destroy all infrastructure
+terraform destroy
+
+# Delete state from S3
+aws s3 rm s3://containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text)/infrastructure/ --recursive
+
+# Delete the bucket (optional)
+aws s3 rb s3://containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text) --force
+
+# Delete DynamoDB table (optional)
+aws dynamodb delete-table --table-name containerlab-tfstate-lock
+```
+
 ### Add More VPN Clients
 
 ```bash
@@ -667,11 +1034,18 @@ aws budgets create-budget \
 ├── main.tf                    # Core infrastructure
 ├── variables.tf               # Input variables
 ├── outputs.tf                 # Output values
+├── backend.tf                 # S3 backend configuration
 ├── terraform.tfvars.example   # Example configuration
 ├── terraform.tfvars           # Your config (git ignored)
+├── backend.tfvars.example     # Example backend config
+├── backend.tfvars             # Your backend config (git ignored)
 ├── wireguard-setup.sh         # VPN server setup
 ├── lab-setup.sh               # Lab server setup
-└── README.md                  # This file
+├── setup-backend.sh           # S3 backend setup script (executable)
+├── .gitignore                 # Protects sensitive files
+├── README.md                  # This file (main guide)
+├── BACKEND.md                 # S3 backend detailed guide
+└── NETWORK_ACCESS.md          # Direct cEOS access guide
 ```
 
 ## Network Reference
@@ -707,10 +1081,17 @@ Containerlab:          172.20.0.0/16 (routed via VPN)
 
 ## Support Resources
 
+**Project Documentation:**
+- **README.md** (this file): Main setup and usage guide
+- **BACKEND.md**: Comprehensive S3 backend setup and management
+- **NETWORK_ACCESS.md**: Direct cEOS network access guide
+
+**External Resources:**
 - **Containerlab Docs**: https://containerlab.dev
 - **Arista cEOS**: https://www.arista.com/en/support/software-download
 - **WireGuard**: https://www.wireguard.com/install/
 - **Terraform AWS Provider**: https://registry.terraform.io/providers/hashicorp/aws/latest/docs
+- **AWS S3 Backend**: https://developer.hashicorp.com/terraform/language/settings/backends/s3
 
 ## License
 

@@ -9,6 +9,10 @@ crash.log
 override.tf
 override.tf.json
 
+# Backend configuration (may contain sensitive bucket names)
+backend.tfvars
+!backend.tfvars.example
+
 # SSH keys
 *.pem
 *.key
