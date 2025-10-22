@@ -48,10 +48,24 @@ resource "aws_subnet" "public" {
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
+  # Default route to Internet Gateway
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.main.id
   }
+
+  # Route VPN client traffic through VPN server
+  route {
+    cidr_block           = "10.13.13.0/24"
+    network_interface_id = aws_instance.vpn.primary_network_interface_id
+  }
+
+  route {
+    cidr_block           = "172.20.20.0/24"
+    network_interface_id = aws_spot_instance_request.lab.primary_network_interface_id
+  }
+
+  depends_on = [aws_instance.vpn, aws_spot_instance_request.lab]
 
   tags = {
     Name = "${var.project_name}-public-rt"
@@ -179,6 +193,11 @@ resource "aws_instance" "vpn" {
   vpc_security_group_ids = [aws_security_group.vpn.id]
   key_name               = var.ssh_key_name
 
+  # CRITICAL: Disable source/destination checking to allow VPN server to route packets
+  # This allows the instance to forward traffic between VPN clients and lab server
+  # Without this, AWS will drop packets not specifically addressed to/from this instance
+  source_dest_check = false
+
   user_data = templatefile("${path.module}/wireguard-setup.sh", {
     vpn_subnet     = "10.13.13.0/24"
     lab_server_ip  = "10.0.1.100"
@@ -207,6 +226,11 @@ resource "aws_spot_instance_request" "lab" {
   spot_price           = var.spot_max_price
   wait_for_fulfillment = true
   spot_type            = "one-time"
+
+  # CRITICAL: Disable source/destination checking to allow the lab server to route packets
+  # This allows the instance to forward traffic between VPN clients and lab server
+  # Without this, AWS will drop packets not specifically addressed to/from this instance
+  source_dest_check = false
 
   root_block_device {
     volume_size           = var.lab_disk_size

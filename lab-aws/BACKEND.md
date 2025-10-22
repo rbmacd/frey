@@ -93,7 +93,7 @@ laptop$ terraform destroy  # Works perfectly!
 ## Architecture
 
 ```
-Your Machine                    AWS Account
+Your Machine                    AWS Account (Default: us-east-2)
     │                               │
     ├─ terraform apply/destroy      │
     │                               │
@@ -147,19 +147,33 @@ If you prefer to run commands manually:
 # Get account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
+# Set region (default: us-east-2, or use your preferred region)
+REGION="us-east-2"
+
 # Create S3 bucket
-aws s3api create-bucket \
-  --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
-  --region us-east-1
+if [ "${REGION}" = "us-east-1" ]; then
+  # us-east-1 doesn't need LocationConstraint
+  aws s3api create-bucket \
+    --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
+    --region "${REGION}"
+else
+  # Other regions require LocationConstraint
+  aws s3api create-bucket \
+    --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
+    --region "${REGION}" \
+    --create-bucket-configuration LocationConstraint="${REGION}"
+fi
 
 # Enable versioning
 aws s3api put-bucket-versioning \
   --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
+  --region "${REGION}" \
   --versioning-configuration Status=Enabled
 
 # Enable encryption
 aws s3api put-bucket-encryption \
   --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
+  --region "${REGION}" \
   --server-side-encryption-configuration '{
     "Rules": [{
       "ApplyServerSideEncryptionByDefault": {
@@ -172,6 +186,7 @@ aws s3api put-bucket-encryption \
 # Block public access
 aws s3api put-public-access-block \
   --bucket "containerlab-tfstate-${ACCOUNT_ID}" \
+  --region "${REGION}" \
   --public-access-block-configuration \
     BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 
@@ -181,7 +196,7 @@ aws dynamodb create-table \
   --attribute-definitions AttributeName=LockID,AttributeType=S \
   --key-schema AttributeName=LockID,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
-  --region us-east-1
+  --region "${REGION}"
 ```
 
 ## Backend Configuration
@@ -193,7 +208,7 @@ terraform {
   backend "s3" {
     bucket         = "containerlab-tfstate-<ACCOUNT_ID>"
     key            = "infrastructure/terraform.tfstate"
-    region         = "us-east-1"
+    region         = "us-east-2"  # Default, change if using different region
     encrypt        = true
     dynamodb_table = "containerlab-tfstate-lock"
   }
@@ -203,9 +218,11 @@ terraform {
 **Key Parameters:**
 - `bucket`: Where state is stored (must exist before init)
 - `key`: Path within bucket (allows multiple projects)
-- `region`: AWS region for S3 and DynamoDB
+- `region`: AWS region for S3 and DynamoDB (default: us-east-2)
 - `encrypt`: Enable server-side encryption
 - `dynamodb_table`: For state locking
+
+**Important:** Backend region should match your `aws_region` variable in terraform.tfvars for consistency.
 
 ### Alternative: backend.tfvars
 
@@ -216,7 +233,7 @@ Instead of hardcoding in backend.tf:
 cat > backend.tfvars << EOF
 bucket         = "containerlab-tfstate-123456789012"
 key            = "infrastructure/terraform.tfstate"
-region         = "us-east-1"
+region         = "us-east-2"
 encrypt        = true
 dynamodb_table = "containerlab-tfstate-lock"
 EOF
@@ -228,6 +245,7 @@ terraform init -backend-config=backend.tfvars
 **Benefits:**
 - Keep backend.tf generic across projects
 - Store account-specific config separately
+- Easy to use different regions: just change region in backend.tfvars
 - backend.tfvars is git-ignored by default
 
 ## Usage
@@ -235,11 +253,21 @@ terraform init -backend-config=backend.tfvars
 ### Initial Setup
 
 ```bash
-# First time setup
+# First time setup (uses default us-east-2 region)
 ./setup-backend.sh
+
+# Or specify a custom region:
+# AWS_REGION=us-west-2 ./setup-backend.sh
+
 sed -i "s/<ACCOUNT_ID>/$(aws sts get-caller-identity --query Account --output text)/g" backend.tf
+
+# If using non-default region, update backend.tf:
+# sed -i "s/us-east-2/us-west-2/g" backend.tf
+
 terraform init
 ```
+
+**Important:** Your backend region should match your resource region (aws_region in terraform.tfvars) for consistency.
 
 ### Normal Operations
 
@@ -664,6 +692,73 @@ aws dynamodb delete-table --table-name containerlab-tfstate-lock
 5. **Block Public Access** - Enabled by default in our setup
 6. **Regular Cleanup** - Don't leave destroyed infrastructure's state around
 7. **Document Account ID** - Team members need to know the bucket name
+8. **Match Regions** - Backend region should match resource region (aws_region)
+9. **Test Backend Access** - Run `terraform init` to verify before deploying resources
+
+## Region Considerations
+
+### Choosing a Backend Region
+
+**Default:** us-east-2 (Ohio) - Good balance of cost and reliability
+
+**Factors to Consider:**
+- **Match Resource Region**: Backend and resources should be in same region
+- **Latency**: Minimal impact (state is only read/written during terraform operations)
+- **Cost**: S3 and DynamoDB costs are similar across regions (~$0.02/month)
+- **Compliance**: Some organizations require data residency in specific regions
+
+### Using a Different Region
+
+```bash
+# Method 1: Set environment variable before running setup
+AWS_REGION=eu-west-1 ./setup-backend.sh
+
+# Method 2: Set AWS_REGION in your shell
+export AWS_REGION=eu-west-1
+./setup-backend.sh
+
+# Then update backend.tf to match
+sed -i 's/us-east-2/eu-west-1/g' backend.tf
+
+# And terraform.tfvars
+# aws_region = "eu-west-1"
+```
+
+### Multi-Region Considerations
+
+If you're deploying resources in multiple regions, you have two options:
+
+**Option 1: Single Backend for All Regions (Recommended)**
+```hcl
+# backend.tf - Keep in one region
+region = "us-east-2"  # Backend location
+
+# terraform.tfvars - Can be any region
+aws_region = "eu-west-1"  # Resource location
+
+# This works fine! State can be in a different region than resources.
+```
+
+**Option 2: Separate Backends Per Region**
+```hcl
+# For us-east-2 deployment
+terraform {
+  backend "s3" {
+    bucket = "containerlab-tfstate-123456789012"
+    key    = "us-east-2/terraform.tfstate"
+    region = "us-east-2"
+  }
+}
+
+# For eu-west-1 deployment
+terraform {
+  backend "s3" {
+    bucket = "containerlab-tfstate-123456789012"
+    key    = "eu-west-1/terraform.tfstate"
+    region = "us-east-2"  # Can use same backend region
+  }
+}
+```
 
 ## Summary
 

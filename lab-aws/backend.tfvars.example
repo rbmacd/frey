@@ -5,7 +5,8 @@
 # Usage:
 #   1. Copy this file: cp backend.tfvars.example backend.tfvars
 #   2. Update the bucket name with your AWS account ID
-#   3. Initialize with: terraform init -backend-config=backend.tfvars
+#   3. (Optional) Change region if not using default us-east-2
+#   4. Initialize with: terraform init -backend-config=backend.tfvars
 #
 # Note: backend.tfvars is git-ignored for security
 
@@ -16,8 +17,9 @@ bucket = "containerlab-tfstate-123456789012"
 # State file key/path within the bucket
 key = "infrastructure/terraform.tfstate"
 
-# AWS region
-region = "us-east-1"
+# AWS region (should match your aws_region variable)
+# Default is us-east-2, change if you're using a different region
+region = "us-east-2"
 
 # Enable encryption
 encrypt = true

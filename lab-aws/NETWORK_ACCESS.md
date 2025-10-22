@@ -27,6 +27,12 @@ Containerlab Network (172.20.20.0/24)
 3. **VPN Server** receives packet and routes to lab server `10.0.1.100`
 4. **Lab Server** forwards to Docker network `172.20.20.0/24`
 5. **cEOS instance** receives packet directly
+6. **Return traffic**: cEOS → Lab Server → VPN Server (via AWS route) → VPN tunnel → Your laptop
+
+**Key AWS Routing:**
+The AWS route table includes: `10.13.13.0/24 → VPN Server ENI`
+
+This ensures the lab server knows to send return traffic destined for VPN clients (10.13.13.0/24) through the VPN server, enabling bidirectional communication.
 
 All handled automatically - you just use the IP addresses!
 
@@ -38,12 +44,24 @@ The VPN server is configured to:
 - Route `172.20.0.0/16` to lab server (`10.0.1.100`)
 - Forward packets between VPN clients and lab server
 - Maintain routing table for containerlab networks
+- Act as a gateway with `source_dest_check = false` in AWS
 
 ```bash
 # On VPN server, you'll see:
 ip route | grep 172.20
 # Output: 172.20.0.0/16 via 10.0.1.100 dev eth0
 ```
+
+### AWS Route Table Configuration
+
+The AWS route table for the public subnet includes:
+```
+Destination         Target
+0.0.0.0/0          Internet Gateway
+10.13.13.0/24      VPN Server ENI (eni-xxxxx)
+```
+
+This second route is critical: it tells the lab server and all instances in the subnet that to reach VPN clients (10.13.13.0/24), traffic should be sent to the VPN server's network interface. Without this route, the lab server can receive traffic from VPN clients but cannot send responses back, resulting in one-way connectivity.
 
 ### Lab Server Configuration
 
@@ -67,6 +85,8 @@ AllowedIPs = 10.0.0.0/16, 10.13.13.0/24, 172.20.0.0/16
 ```
 
 The key is `AllowedIPs = 172.20.0.0/16` - this tells WireGuard to route containerlab traffic through the VPN.
+
+**Important:** Save your config as `wg0.conf` (or wg1.conf, wg2.conf, etc.). The filename must match a valid network interface name for `wg-quick` to work properly. Names like "wireguard-containerlab.conf" won't work because hyphens aren't valid in interface names.
 
 ## Verification Steps
 
@@ -319,6 +339,71 @@ sudo sysctl net.ipv4.ip_forward
 
 sudo iptables -L FORWARD -n
 # Should show rules accepting traffic from 10.13.13.0/24
+
+# Check AWS route table
+aws ec2 describe-route-tables \
+  --filters Name=tag:Name,Values=containerlab-public-rt \
+  --query 'RouteTables[0].Routes'
+# Should include route: 10.13.13.0/24 → VPN Server ENI
+```
+
+### One-Way Connectivity (Can ping lab server, no response)
+
+**Problem:** VPN client can send packets to lab server, but receives no responses.
+
+**Root Cause:** Lab server doesn't know how to route return traffic back to VPN clients (10.13.13.0/24).
+
+**Diagnosis:**
+```bash
+# From VPN client
+ping 10.0.1.100
+# If you see: "Request timeout" or "Destination Host Unreachable"
+# But tcpdump on lab server shows packets arriving
+# → Return path is broken
+
+# On lab server (via VPN server jump host)
+ssh -J ubuntu@<VPN_IP> ubuntu@10.0.1.100
+ip route show | grep 10.13.13
+# If this returns nothing, the route is missing
+```
+
+**Solution:**
+This should be automatic with the updated Terraform config. If deploying fresh:
+```bash
+terraform apply
+```
+
+If you have an existing deployment without the route:
+```bash
+# Option 1: Redeploy (cleanest)
+terraform destroy
+terraform apply
+
+# Option 2: Add route manually (temporary fix)
+VPN_ENI=$(aws ec2 describe-instances \
+  --filters Name=tag:Name,Values=containerlab-vpn-server \
+  --query 'Reservations[0].Instances[0].NetworkInterfaces[0].NetworkInterfaceId' \
+  --output text)
+
+RT_ID=$(aws ec2 describe-route-tables \
+  --filters Name=tag:Name,Values=containerlab-public-rt \
+  --query 'RouteTables[0].RouteTableId' \
+  --output text)
+
+aws ec2 create-route \
+  --route-table-id $RT_ID \
+  --destination-cidr-block 10.13.13.0/24 \
+  --network-interface-id $VPN_ENI
+```
+
+**Verify Fix:**
+```bash
+# From VPN client
+ping -c 5 10.0.1.100
+# Should get responses with reasonable RTT (20-50ms)
+
+# 64 bytes from 10.0.1.100: icmp_seq=1 ttl=64 time=25.3 ms
+# ← If you see this, routing is working!
 ```
 
 ### Missing AllowedIPs
@@ -327,17 +412,19 @@ If your client config doesn't include `172.20.0.0/16`:
 
 ```bash
 # Disconnect VPN
-sudo wg-quick down wireguard-containerlab.conf
+sudo wg-quick down wg0.conf
 
 # Get fresh config
-ssh ubuntu@<VPN_IP> cat /home/ubuntu/client1.conf > wireguard-new.conf
+ssh ubuntu@<VPN_IP> cat /home/ubuntu/client1.conf > wg0-new.conf
 
 # Verify it includes 172.20.0.0/16
-grep AllowedIPs wireguard-new.conf
+grep AllowedIPs wg0-new.conf
 
 # Connect with new config
-sudo wg-quick up wireguard-new.conf
+sudo wg-quick up wg0-new.conf
 ```
+
+**Note:** Always save WireGuard configs with simple names like `wg0.conf`, `wg1.conf`, etc. The filename determines the interface name, and interface names can't contain hyphens or special characters.
 
 ## Network Limits
 

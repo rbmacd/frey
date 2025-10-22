@@ -1,8 +1,10 @@
 # Copy this file to terraform.tfvars and fill in your values
 # DO NOT commit terraform.tfvars to version control
 
-# AWS Region
-aws_region = "us-east-1"
+# AWS Region (default: us-east-2)
+# Choose region closest to you for best latency
+# Common options: us-east-2, us-east-1, us-west-2, eu-west-1
+aws_region = "us-east-2"
 
 # Project name (used for resource tagging)
 project_name = "containerlab"

@@ -1,9 +1,6 @@
 #!/bin/bash
 set -e
 
-# Wait for cloud-init to finish
-cloud-init status --wait
-
 # Update system
 apt-get update
 apt-get upgrade -y
@@ -57,7 +54,6 @@ cat > /home/ubuntu/client1.conf <<EOF
 [Interface]
 PrivateKey = $CLIENT1_PRIVATE_KEY
 Address = 10.13.13.2/24
-DNS = 1.1.1.1
 
 [Peer]
 PublicKey = $SERVER_PUBLIC_KEY

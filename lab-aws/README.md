@@ -21,6 +21,7 @@ Terraform infrastructure for deploying ephemeral containerlab environments on AW
 ```
 Internet → [IGW] → Public Subnet (10.0.1.0/24)
                     ├─ VPN Server (WireGuard, configurable, default: t3.micro)
+                    │  └─ Routes VPN client traffic (10.13.13.0/24)
                     └─ Lab Server (configurable, default: r7i.xlarge spot)
                          └─ Docker Networks
                               └─ Containerlab (172.20.0.0/16)
@@ -33,13 +34,23 @@ VPN Client (10.13.13.2) ──[VPN tunnel]──> VPN Server
                                               │
                                               ├──> Lab Server (10.0.1.100)
                                               └──> cEOS instances (172.20.x.x) ✓
+                                              
+AWS Route Table:
+  0.0.0.0/0           → Internet Gateway
+  10.13.13.0/24       → VPN Server ENI (for return traffic)
 ```
 
 **Network Flow:**
 1. VPN client connects to VPN server (10.13.13.2 → VPN server)
 2. VPN server routes to lab server (10.0.1.100)
 3. Lab server routes to containerlab networks (172.20.0.0/16)
-4. **Result**: VPN clients have direct IP access to all cEOS instances!
+4. Lab server return traffic to VPN clients uses VPN server as next hop (via AWS route)
+5. **Result**: VPN clients have direct IP access to all cEOS instances with working bidirectional traffic!
+
+**Routing Details:**
+- VPN Server: Has `source_dest_check = false` to allow routing
+- AWS Route Table: Routes 10.13.13.0/24 traffic to VPN server's ENI
+- This ensures lab server can reach VPN clients for return traffic
 
 **Design Highlights:**
 - **Simplified**: Single subnet, no NAT instance needed
@@ -87,9 +98,9 @@ lab_instance_type = "r7i.2xlarge"  # For larger topologies
 
 ## Cost Breakdown
 
-### Hourly Costs (US-East-1)
+### Hourly Costs (US-East-2, Default Region)
 
-**Note:** Costs shown are examples using default instance types. Adjust based on your `vpn_instance_type` and `lab_instance_type` selections.
+**Note:** Costs shown are examples using default instance types in us-east-2 (Ohio). Adjust based on your `vpn_instance_type`, `lab_instance_type`, and `aws_region` selections. Spot prices vary by region.
 
 | Resource | Default Type | Instance Mode | Cost/Hr | Notes |
 |----------|--------------|---------------|---------|-------|
@@ -114,7 +125,8 @@ lab_instance_type = "r7i.2xlarge"  # For larger topologies
 - **VPN Server**: On-demand for stable VPN access (interruptions = no connectivity)
 - **Lab Server**: Spot for maximum cost savings (interruptions rare and acceptable)
 - **Backend**: Negligible cost, prevents orphaned resources
-- **Both are configurable** via terraform.tfvars
+- **Region**: Default us-east-2, configurable via `aws_region`
+- **All are configurable** via terraform.tfvars
 
 ### Cost Scenarios
 
@@ -163,10 +175,24 @@ lab_instance_type = "r7i.2xlarge"  # For larger topologies
 ### Regional Pricing Differences
 
 Spot prices vary by region. Here are typical spot prices for r7i.xlarge:
-- us-east-1 (N. Virginia): $0.08-0.12/hr
+- **us-east-2 (Ohio)**: $0.08-0.12/hr ← **Default region**
+- us-east-1 (N. Virginia): $0.08-0.12/hr (usually lowest prices)
 - us-west-2 (Oregon): $0.09-0.13/hr  
 - eu-west-1 (Ireland): $0.10-0.14/hr
 - ap-southeast-1 (Singapore): $0.12-0.16/hr
+
+**Choosing a Region:**
+- **Latency**: Pick the region closest to you
+- **Cost**: us-east-1 often has the lowest prices
+- **Availability**: Check spot pricing history in your preferred region
+- **Default**: us-east-2 is a good balance of price and reliability
+
+**Change region in terraform.tfvars:**
+```hcl
+aws_region = "us-west-2"  # or your preferred region
+```
+
+**Important:** Your backend region (in backend.tf) should match your resource region (aws_region) for consistency.
 
 ## Prerequisites
 
@@ -372,16 +398,19 @@ For infrastructure that costs $0.12-0.30/hour, the $0.02/month insurance is wort
 ### 0. Setup Backend (Recommended First Step)
 
 ```bash
-# Run automated backend setup
+# 1. Run automated backend setup
 chmod +x setup-backend.sh
 ./setup-backend.sh
 
-# Update backend.tf with your account ID
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-sed -i "s/<ACCOUNT_ID>/${ACCOUNT_ID}/g" backend.tf
+# Or specify a different region:
+# AWS_REGION=us-west-2 ./setup-backend.sh
 
-# Or use sed for macOS:
-# sed -i '' "s/<ACCOUNT_ID>/${ACCOUNT_ID}/g" backend.tf
+# 2. Configure backend with your account ID
+cp backend.tfvars.example backend.tfvars
+# Edit backend.tfvars and replace 123456789012 with your account ID
+
+# 3. Initialize Terraform with backend config
+terraform init -backend-config=backend.tfvars
 ```
 
 ### 1. Clone and Configure
@@ -401,12 +430,20 @@ vim terraform.tfvars
 ```
 
 **Key configuration options in terraform.tfvars:**
+- `aws_region` - AWS region (default: us-east-2)
 - `ssh_key_name` - Your AWS SSH key pair name
 - `admin_ip` - Your public IP in CIDR format (e.g., "1.2.3.4/32")
 - `vpn_instance_type` - VPN server size (default: t3.micro)
 - `lab_instance_type` - Lab server size (default: r7i.xlarge)
 - `spot_max_price` - Max spot price for lab server (leave empty for on-demand price)
 - `lab_disk_size` - Disk size in GB (default: 100)
+
+**Region Selection:**
+Choose a region close to you for best latency. Default is us-east-2 (Ohio).
+```hcl
+# In terraform.tfvars
+aws_region = "us-east-2"  # Default, or choose: us-east-1, us-west-2, eu-west-1, etc.
+```
 
 ### 2. Get Your Public IP
 
@@ -433,8 +470,8 @@ chmod 400 containerlab-key.pem
 ### 4. Deploy Infrastructure
 
 ```bash
-# Initialize Terraform
-terraform init
+# Initialize Terraform (with backend)
+terraform init -backend-config=backend.tfvars
 
 # Review planned changes
 terraform plan
@@ -464,8 +501,8 @@ exit
 
 **Mac/Linux:**
 ```bash
-# Save config
-vim ~/wireguard-containerlab.conf
+# Save config (filename must be a valid interface name like wg0.conf)
+vim ~/wg0.conf
 # Paste the config from previous step
 
 # Install WireGuard
@@ -473,13 +510,16 @@ vim ~/wireguard-containerlab.conf
 # Ubuntu: apt install wireguard
 
 # Connect
-sudo wg-quick up ~/wireguard-containerlab.conf
+sudo wg-quick up ~/wg0.conf
+
+# Disconnect when done
+sudo wg-quick down ~/wg0.conf
 ```
 
 **Windows:**
 1. Download WireGuard: https://www.wireguard.com/install/
 2. Open WireGuard app
-3. Add Tunnel → Import from file
+3. Add Tunnel → Import from file (save as wg0.conf)
 4. Activate tunnel
 
 ### 7. Access Lab Server
@@ -513,6 +553,8 @@ ssh admin@172.20.20.2
 ```
 
 **🎉 You now have direct IP access to all containerlab networks!**
+
+**Important:** Save your WireGuard config as `wg0.conf` (not wireguard-containerlab.conf). The filename must be a valid interface name for wg-quick to work properly.
 
 ## Using Containerlab
 
@@ -679,7 +721,7 @@ terraform show
 
 ```bash
 # Linux/Mac
-sudo wg-quick down ~/wireguard-containerlab.conf
+sudo wg-quick down ~/wg0.conf
 
 # Windows: Deactivate in WireGuard app
 ```
@@ -984,10 +1026,35 @@ sudo systemctl restart wg-quick@wg0
 
 ### Use Different Region
 
+To deploy in a different AWS region:
+
+**Method 1: Update terraform.tfvars (Recommended)**
 ```hcl
 # terraform.tfvars
-aws_region = "us-west-2"
+aws_region = "us-west-2"  # Change to your preferred region
 ```
+
+**Method 2: Command-line override**
+```bash
+terraform apply -var="aws_region=us-west-2"
+```
+
+**Important:** Make sure your backend region matches!
+
+```bash
+# If you already ran setup-backend.sh with a different region:
+# 1. Update backend.tf to match:
+sed -i 's/region = "us-east-2"/region = "us-west-2"/g' backend.tf
+
+# 2. Or delete and recreate backend in new region:
+terraform init -reconfigure
+```
+
+**Regional Considerations:**
+- **Spot Pricing**: Check spot instance pricing in your target region
+- **Service Availability**: Some instance types may not be available in all regions
+- **Latency**: Choose region closest to your location
+- **Data Transfer**: Costs vary by region
 
 ### Enable S3 Backend (Team Use)
 

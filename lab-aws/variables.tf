@@ -1,7 +1,16 @@
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
-  default     = "us-east-1"
+  default     = "us-east-2"
+  
+  # Common regions and their characteristics:
+  # us-east-2 (Ohio) - Default, good pricing, reliable
+  # us-east-1 (N. Virginia) - Lowest prices, all services available
+  # us-west-2 (Oregon) - Good for West Coast, reliable
+  # eu-west-1 (Ireland) - Good for Europe
+  # ap-southeast-1 (Singapore) - Good for Asia
+  #
+  # Note: Spot prices vary by region. Check pricing before choosing.
 }
 
 variable "project_name" {

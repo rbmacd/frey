@@ -6,6 +6,9 @@
 #   chmod +x setup-backend.sh  (first time only)
 #   ./setup-backend.sh
 #
+#   Or specify a custom region:
+#   AWS_REGION=us-west-2 ./setup-backend.sh
+#
 # What this script does:
 #   1. Creates S3 bucket: containerlab-tfstate-<ACCOUNT_ID>
 #   2. Enables versioning (for state rollback)
@@ -30,7 +33,10 @@ fi
 
 # Get AWS account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-REGION=${AWS_REGION:-us-east-1}
+
+# Get region from environment variable or default to us-east-2
+REGION=${AWS_REGION:-us-east-2}
+
 BUCKET_NAME="containerlab-tfstate-${ACCOUNT_ID}"
 DYNAMODB_TABLE="containerlab-tfstate-lock"
 
@@ -40,16 +46,25 @@ echo "S3 Bucket: ${BUCKET_NAME}"
 echo "DynamoDB Table: ${DYNAMODB_TABLE}"
 echo ""
 
+# Warn if region doesn't match common defaults
+if [ "${REGION}" != "us-east-2" ]; then
+    echo "⚠️  NOTE: Using region ${REGION}"
+    echo "   Make sure your backend.tf and terraform.tfvars use the same region!"
+    echo ""
+fi
+
 # Create S3 bucket
 echo "Creating S3 bucket for Terraform state..."
-if aws s3api head-bucket --bucket "${BUCKET_NAME}" 2>/dev/null; then
+if aws s3api head-bucket --bucket "${BUCKET_NAME}" --region "${REGION}" 2>/dev/null; then
     echo "  ✓ Bucket ${BUCKET_NAME} already exists"
 else
     if [ "${REGION}" = "us-east-1" ]; then
+        # us-east-1 doesn't need LocationConstraint
         aws s3api create-bucket \
             --bucket "${BUCKET_NAME}" \
             --region "${REGION}"
     else
+        # Other regions require LocationConstraint
         aws s3api create-bucket \
             --bucket "${BUCKET_NAME}" \
             --region "${REGION}" \
@@ -62,6 +77,7 @@ fi
 echo "Enabling versioning..."
 aws s3api put-bucket-versioning \
     --bucket "${BUCKET_NAME}" \
+    --region "${REGION}" \
     --versioning-configuration Status=Enabled
 echo "  ✓ Versioning enabled"
 
@@ -69,6 +85,7 @@ echo "  ✓ Versioning enabled"
 echo "Enabling encryption..."
 aws s3api put-bucket-encryption \
     --bucket "${BUCKET_NAME}" \
+    --region "${REGION}" \
     --server-side-encryption-configuration '{
         "Rules": [{
             "ApplyServerSideEncryptionByDefault": {
@@ -83,6 +100,7 @@ echo "  ✓ Encryption enabled"
 echo "Blocking public access..."
 aws s3api put-public-access-block \
     --bucket "${BUCKET_NAME}" \
+    --region "${REGION}" \
     --public-access-block-configuration \
         BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 echo "  ✓ Public access blocked"
@@ -113,13 +131,16 @@ echo "=== Setup Complete! ==="
 echo ""
 echo "Next steps:"
 echo ""
-echo "1. Update backend.tf with your bucket name:"
-echo "   sed -i 's/<ACCOUNT_ID>/${ACCOUNT_ID}/g' backend.tf"
+echo "1. Configure backend with your account ID:"
+echo "   cp backend.tfvars.example backend.tfvars"
+echo "   # Edit backend.tfvars and set:"
+echo "   # bucket = \"containerlab-tfstate-${ACCOUNT_ID}\""
+echo "   # region = \"${REGION}\""
 echo ""
-echo "2. Initialize Terraform with the backend:"
-echo "   terraform init"
+echo "2. Initialize Terraform with backend config:"
+echo "   terraform init -backend-config=backend.tfvars"
 echo ""
-echo "3. If you have existing local state, Terraform will ask if you want to migrate it to S3"
+echo "3. If you have existing local state, Terraform will ask to migrate it"
 echo "   Answer 'yes' to migrate"
 echo ""
 echo "Monthly cost estimate:"

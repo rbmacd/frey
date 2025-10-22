@@ -2,7 +2,7 @@
 set -e
 
 # Wait for cloud-init to finish
-cloud-init status --wait
+#cloud-init status --wait
 
 # Update system
 apt-get update
@@ -59,13 +59,13 @@ systemctl enable docker
 systemctl start docker
 
 # Install containerlab
-bash -c "$(curl -sL https://get.containerlab.dev)"
+sudo bash -c "$(curl -sL https://get.containerlab.dev)"
 
 # Create workspace directory
 mkdir -p /home/ubuntu/containerlab-labs
 chown ubuntu:ubuntu /home/ubuntu/containerlab-labs
 
-# Create example topology file for Arista cEOS
+# Create example topology file for Arista cEOS - RM TO UPDATE LATER WITH GIT CALL
 cat > /home/ubuntu/containerlab-labs/example-topology.yaml <<'EOF'
 name: arista-lab
 
