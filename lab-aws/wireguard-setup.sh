@@ -54,6 +54,8 @@ cat > /home/ubuntu/client1.conf <<EOF
 [Interface]
 PrivateKey = $CLIENT1_PRIVATE_KEY
 Address = 10.13.13.2/24
+# Note: No DNS setting - use your system's existing DNS
+# This is a split-tunnel VPN, so your normal DNS continues to work
 
 [Peer]
 PublicKey = $SERVER_PUBLIC_KEY
@@ -62,6 +64,7 @@ Endpoint = $PUBLIC_IP:51820
 # - VPN network (10.13.13.0/24)
 # - AWS VPC (10.0.0.0/16) for lab server access
 # - Containerlab networks (172.20.0.0/16) for direct cEOS access
+# Everything else (including DNS queries) uses your normal internet connection
 AllowedIPs = 10.0.0.0/16, 10.13.13.0/24, 172.20.0.0/16
 PersistentKeepalive = 25
 EOF

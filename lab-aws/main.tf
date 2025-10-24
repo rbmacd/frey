@@ -44,7 +44,17 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Route Table
+# Elastic IP for VPN Server
+resource "aws_eip" "vpn" {
+  domain   = "vpc"
+  instance = aws_instance.vpn.id
+
+  tags = {
+    Name = "${var.project_name}-vpn-eip"
+  }
+}
+
+# Public Route Table
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -54,38 +64,35 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.main.id
   }
 
-  # Route VPN client traffic through VPN server
+  # Route VPN client traffic (10.13.13.0/24) through VPN server
+  # This enables lab server to send return traffic to VPN clients
+  # Without this route, traffic from VPN clients reaches lab server,
+  # but return traffic fails (one-way connectivity issue)
   route {
     cidr_block           = "10.13.13.0/24"
     network_interface_id = aws_instance.vpn.primary_network_interface_id
   }
 
+  # Route containerlab management traffic (172.20.0.0/16) through lab server
+  # This enables direct access to containerlab networks from within AWS VPC
+  # and ensures proper routing for any EC2 instances that need to reach cEOS devices
   route {
-    cidr_block           = "172.20.20.0/24"
-    network_interface_id = aws_spot_instance_request.lab.primary_network_interface_id
+    cidr_block           = "172.20.0.0/16"
+    network_interface_id = aws_instance.lab.primary_network_interface_id
   }
-
-  depends_on = [aws_instance.vpn, aws_spot_instance_request.lab]
 
   tags = {
     Name = "${var.project_name}-public-rt"
   }
+
+  # Ensure instances are created before route table references their ENIs
+  depends_on = [aws_instance.vpn, aws_instance.lab]
 }
 
 # Route Table Association
 resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
-}
-
-# Elastic IP for VPN Server
-resource "aws_eip" "vpn" {
-  domain   = "vpc"
-  instance = aws_instance.vpn.id
-
-  tags = {
-    Name = "${var.project_name}-vpn-eip"
-  }
 }
 
 # Security Group for VPN Server
@@ -208,10 +215,57 @@ resource "aws_instance" "vpn" {
   }
 }
 
+# IAM Role for Lab Server (S3 access for cEOS images)
+resource "aws_iam_role" "lab_server" {
+  name_prefix = "${var.project_name}-lab-"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lab_server_s3" {
+  name_prefix = "s3-access-"
+  role        = aws_iam_role.lab_server.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::containerlab-tfstate-*",
+          "arn:aws:s3:::containerlab-tfstate-*/images/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "lab_server" {
+  name_prefix = "${var.project_name}-lab-"
+  role        = aws_iam_role.lab_server.name
+}
+
 # Lab Server - Spot Instance for Cost Optimization
 # Uses spot pricing for 60-70% cost savings
 # Interruptions are rare (<5%) and acceptable for ephemeral testing
 # If interrupted, simply run 'terraform apply' again
+
+/*
 resource "aws_spot_instance_request" "lab" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.lab_instance_type
@@ -219,18 +273,18 @@ resource "aws_spot_instance_request" "lab" {
 
   vpc_security_group_ids = [aws_security_group.lab.id]
   key_name               = var.ssh_key_name
+  iam_instance_profile   = aws_iam_instance_profile.lab_server.name
 
   # Request a specific private IP for easier VPN routing
   private_ip = "10.0.1.100"
 
+  # Disable source/destination checking to allow routing to/from Docker networks
+  # This is necessary for VPN clients to reach containerlab networks (172.20.0.0/16)
+  source_dest_check = false
+
   spot_price           = var.spot_max_price
   wait_for_fulfillment = true
   spot_type            = "one-time"
-
-  # CRITICAL: Disable source/destination checking to allow the lab server to route packets
-  # This allows the instance to forward traffic between VPN clients and lab server
-  # Without this, AWS will drop packets not specifically addressed to/from this instance
-  source_dest_check = false
 
   root_block_device {
     volume_size           = var.lab_disk_size
@@ -240,7 +294,51 @@ resource "aws_spot_instance_request" "lab" {
     delete_on_termination = true
   }
 
-  user_data = file("${path.module}/lab-setup.sh")
+  user_data = templatefile("${path.module}/lab-setup.sh", {
+    example_topology_url = var.example_topology_url
+  })
+
+  tags = {
+    Name = "${var.project_name}-lab-server"
+  }
+}
+
+*/
+
+resource "aws_instance" "lab" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.lab_instance_type
+  subnet_id     = aws_subnet.public.id
+
+  vpc_security_group_ids = [aws_security_group.lab.id]
+  key_name               = var.ssh_key_name
+  iam_instance_profile   = aws_iam_instance_profile.lab_server.name
+
+  # Request a specific private IP for easier VPN routing
+  private_ip = "10.0.1.100"
+
+  # Disable source/destination checking to allow routing to/from Docker networks
+  # This is necessary for VPN clients to reach containerlab networks (172.20.0.0/16)
+  source_dest_check = false
+
+  instance_market_options {
+    market_type = "spot"
+    spot_options {
+      max_price = var.spot_max_price
+    }
+  }
+
+  root_block_device {
+    volume_size           = var.lab_disk_size
+    volume_type           = "gp3"
+    iops                  = 3000
+    throughput            = 125
+    delete_on_termination = true
+  }
+
+  user_data = templatefile("${path.module}/lab-setup.sh", {
+    example_topology_url = var.example_topology_url
+  })
 
   tags = {
     Name = "${var.project_name}-lab-server"
@@ -249,7 +347,7 @@ resource "aws_spot_instance_request" "lab" {
 
 # Tag the spot instance after creation
 resource "aws_ec2_tag" "lab_instance" {
-  resource_id = aws_spot_instance_request.lab.spot_instance_id
+  resource_id = aws_instance.lab.id
   key         = "Name"
   value       = "${var.project_name}-lab-server"
 }

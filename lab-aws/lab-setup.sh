@@ -1,9 +1,6 @@
 #!/bin/bash
 set -e
 
-# Wait for cloud-init to finish
-#cloud-init status --wait
-
 # Update system
 apt-get update
 apt-get upgrade -y
@@ -39,7 +36,9 @@ apt-get install -y \
     htop \
     iperf3 \
     tcpdump \
-    net-tools
+    net-tools \
+    jq \
+    awscli
 
 # Install Docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
@@ -59,56 +58,104 @@ systemctl enable docker
 systemctl start docker
 
 # Install containerlab
-sudo bash -c "$(curl -sL https://get.containerlab.dev)"
+bash -c "$(curl -sL https://get.containerlab.dev)"
+
+# Download cEOS image from S3 if available
+# Wait for EC2 metadata service to be ready
+echo "Checking EC2 metadata service availability..."
+METADATA_READY=false
+for i in {1..30}; do
+    if curl -s -f -m 1 http://169.254.169.254/latest/meta-data/ >/dev/null 2>&1; then
+        echo "Metadata service is available"
+        METADATA_READY=true
+        break
+    fi
+    echo "Waiting for metadata service... attempt $i/30"
+    sleep 2
+done
+
+if [ "$METADATA_READY" = false ]; then
+    echo "Warning: Metadata service not available after 60 seconds"
+    echo "Skipping S3 cEOS image download"
+else
+    # Get AWS account ID from EC2 instance identity document (no credentials needed!)
+    echo "Retrieving AWS account ID from instance metadata..."
+    ACCOUNT_ID=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.accountId')
+    
+    if [ -n "$ACCOUNT_ID" ] && [ "$ACCOUNT_ID" != "null" ] && [ "$ACCOUNT_ID" != "None" ]; then
+        echo "Successfully retrieved AWS account ID: $ACCOUNT_ID"
+        
+        S3_BUCKET="containerlab-tfstate-$${ACCOUNT_ID}"
+        CEOS_IMAGE="ceos-latest.tar.xz"
+        
+        echo "Attempting to download cEOS image from S3..."
+        echo "Bucket: s3://$${S3_BUCKET}/images/$${CEOS_IMAGE}"
+        
+        # Wait a bit for IAM credentials to be available (credentials are separate from account ID)
+        echo "Waiting for IAM role credentials to be available..."
+        sleep 10
+        
+        # Attempt S3 download with retries
+        MAX_RETRIES=5
+        RETRY_COUNT=0
+        DOWNLOAD_SUCCESS=false
+        
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if aws s3 cp s3://$${S3_BUCKET}/images/$${CEOS_IMAGE} /tmp/$${CEOS_IMAGE} 2>&1; then
+                echo "cEOS image downloaded successfully from S3"
+                echo "Importing cEOS image into Docker..."
+                docker import /tmp/$${CEOS_IMAGE} ceos:latest
+                rm /tmp/$${CEOS_IMAGE}
+                echo "cEOS image imported successfully!"
+                echo "Run 'docker images' to verify"
+                DOWNLOAD_SUCCESS=true
+                break
+            else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                    echo "Download attempt $RETRY_COUNT failed, waiting 10 seconds before retry..."
+                    sleep 10
+                fi
+            fi
+        done
+        
+        if [ "$DOWNLOAD_SUCCESS" = false ]; then
+            echo "Could not download cEOS image from S3 after $MAX_RETRIES attempts"
+            echo "Possible reasons:"
+            echo "  1. Image not uploaded yet: aws s3 cp cEOS.tar.xz s3://$${S3_BUCKET}/images/ceos-latest.tar.xz"
+            echo "  2. IAM permissions issue - check IAM role attached to instance"
+            echo "  3. Bucket does not exist"
+            echo ""
+            echo "You can upload the cEOS image manually later."
+            echo "To debug IAM role: aws sts get-caller-identity"
+        fi
+    else
+        echo "Could not retrieve AWS account ID from instance metadata"
+        echo "cEOS image will need to be imported manually:"
+        echo "  scp cEOS.tar.xz ubuntu@<lab-ip>:~/"
+        echo "  docker import cEOS.tar.xz ceos:latest"
+    fi
+fi
 
 # Create workspace directory
 mkdir -p /home/ubuntu/containerlab-labs
 chown ubuntu:ubuntu /home/ubuntu/containerlab-labs
 
-# Create example topology file for Arista cEOS - RM TO UPDATE LATER WITH GIT CALL
-cat > /home/ubuntu/containerlab-labs/example-topology.yaml <<'EOF'
-name: arista-lab
+# Download example topology from URL if configured
+TOPOLOGY_URL="${example_topology_url}"
 
-topology:
-  nodes:
-    spine1:
-      kind: ceos
-      image: ceos:latest
-      mgmt-ipv4: 172.20.20.2
-      
-    spine2:
-      kind: ceos
-      image: ceos:latest
-      mgmt-ipv4: 172.20.20.3
-      
-    leaf1:
-      kind: ceos
-      image: ceos:latest
-      mgmt-ipv4: 172.20.20.4
-      
-    leaf2:
-      kind: ceos
-      image: ceos:latest
-      mgmt-ipv4: 172.20.20.5
-
-  links:
-    # Spine1 to Leafs
-    - endpoints: ["spine1:eth1", "leaf1:eth1"]
-    - endpoints: ["spine1:eth2", "leaf2:eth1"]
-    
-    # Spine2 to Leafs
-    - endpoints: ["spine2:eth1", "leaf1:eth2"]
-    - endpoints: ["spine2:eth2", "leaf2:eth2"]
-    
-    # Leaf to Leaf (optional)
-    - endpoints: ["leaf1:eth3", "leaf2:eth3"]
-
-mgmt:
-  network: custom-mgmt
-  ipv4-subnet: 172.20.20.0/24
-EOF
-
-chown ubuntu:ubuntu /home/ubuntu/containerlab-labs/example-topology.yaml
+if [ -n "$TOPOLOGY_URL" ]; then
+    echo "Downloading example topology from: $TOPOLOGY_URL"
+    if curl -fsSL "$TOPOLOGY_URL" -o /home/ubuntu/containerlab-labs/example-topology.yaml; then
+        chown ubuntu:ubuntu /home/ubuntu/containerlab-labs/example-topology.yaml
+        echo "Example topology downloaded successfully!"
+    else
+        echo "Warning: Could not download example topology from $TOPOLOGY_URL"
+        echo "You can manually create topology files in ~/containerlab-labs/"
+    fi
+else
+    echo "No example topology URL configured. Create your own in ~/containerlab-labs/"
+fi
 
 # Create README with instructions
 cat > /home/ubuntu/README.txt <<'EOF'
@@ -158,7 +205,7 @@ This means you can:
 1. Verify containerlab installation:
    sudo containerlab version
 
-2. Check example topology:
+2. Check example topology (downloaded from GitHub):
    cd ~/containerlab-labs
    cat example-topology.yaml
 
@@ -174,6 +221,11 @@ This means you can:
 
 6. Destroy the topology:
    sudo containerlab destroy -t example-topology.yaml
+
+Note: The example topology is downloaded from:
+${example_topology_url}
+
+You can create your own topologies in ~/containerlab-labs/
 
 == USEFUL COMMANDS ==
 

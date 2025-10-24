@@ -18,7 +18,7 @@ backend.tfvars
 *.key
 *.pub
 
-# WireGuard configs
+# WireGuard configs (wg0.conf, wg1.conf, etc.)
 *.conf
 !wireguard-setup.sh
 

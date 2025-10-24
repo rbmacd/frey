@@ -1,6 +1,6 @@
 # Direct Network Access to Containerlab
 
-This infrastructure provides **direct IP connectivity** from your laptop to Arista cEOS instances running in containerlab on AWS. No SSH tunneling, port forwarding, or jump hosts required!
+This infrastructure provides **direct IP connectivity** from your laptop to Arista cEOS instances running in containerlab on AWS. No SSH tunneling, port forwarding, or jump hosts required.
 
 ## How It Works
 
@@ -59,9 +59,12 @@ The AWS route table for the public subnet includes:
 Destination         Target
 0.0.0.0/0          Internet Gateway
 10.13.13.0/24      VPN Server ENI (eni-xxxxx)
+172.20.0.0/16      Lab Server ENI (eni-yyyyy)
 ```
 
-This second route is critical: it tells the lab server and all instances in the subnet that to reach VPN clients (10.13.13.0/24), traffic should be sent to the VPN server's network interface. Without this route, the lab server can receive traffic from VPN clients but cannot send responses back, resulting in one-way connectivity.
+These routes are critical for proper network flow:
+- **First route (10.13.13.0/24)**: Tells the lab server that to reach VPN clients, traffic should be sent to the VPN server's network interface. Without this route, the lab server can receive traffic from VPN clients but cannot send responses back.
+- **Second route (172.20.0.0/16)**: Ensures any traffic in the AWS VPC destined for containerlab networks is routed to the lab server. This enables proper routing for the Docker bridge networks hosting cEOS instances.
 
 ### Lab Server Configuration
 

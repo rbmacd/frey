@@ -20,12 +20,12 @@ output "vpn_server_ssh" {
 
 output "lab_server_ip" {
   description = "IP address of lab server (accessible via VPN only)"
-  value       = aws_spot_instance_request.lab.private_ip
+  value       = aws_instance.lab.private_ip
 }
 
 output "lab_server_ssh_via_vpn" {
   description = "SSH command for lab server (connect to VPN first)"
-  value       = "ssh ubuntu@${aws_spot_instance_request.lab.private_ip}"
+  value       = "ssh ubuntu@${aws_instance.lab.private_ip}"
 }
 
 output "wireguard_config_location" {
@@ -53,7 +53,7 @@ output "setup_instructions" {
        Download WireGuard: https://www.wireguard.com/install/
     
     4. Connect to VPN and access lab server:
-       ssh ubuntu@${aws_spot_instance_request.lab.private_ip}
+       ssh ubuntu@${aws_instance.lab.private_ip}
     
     5. On lab server, containerlab is pre-installed. Start using:
        sudo containerlab deploy -t your-topology.yaml

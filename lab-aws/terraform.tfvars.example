@@ -45,3 +45,9 @@ spot_max_price = ""
 # cEOS images are ~1.5 GB each
 # Recommended: 100 GB for ~20 nodes, 200 GB for larger deployments
 lab_disk_size = 100
+
+# Example topology URL (optional)
+# URL to download example containerlab topology during lab server setup
+# Set to empty string ("") to skip downloading example topology
+# Default uses a 4-node Arista cEOS spine-leaf topology
+example_topology_url = "https://raw.githubusercontent.com/rbmacd/frey/main/lab-aws/example-topology.yaml"

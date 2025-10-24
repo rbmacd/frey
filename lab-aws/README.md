@@ -37,7 +37,8 @@ VPN Client (10.13.13.2) ──[VPN tunnel]──> VPN Server
                                               
 AWS Route Table:
   0.0.0.0/0           → Internet Gateway
-  10.13.13.0/24       → VPN Server ENI (for return traffic)
+  10.13.13.0/24       → VPN Server ENI (for return traffic to VPN clients)
+  172.20.0.0/16       → Lab Server ENI (for containerlab management networks)
 ```
 
 **Network Flow:**
@@ -49,8 +50,11 @@ AWS Route Table:
 
 **Routing Details:**
 - VPN Server: Has `source_dest_check = false` to allow routing
-- AWS Route Table: Routes 10.13.13.0/24 traffic to VPN server's ENI
-- This ensures lab server can reach VPN clients for return traffic
+- Lab Server: Has `source_dest_check = false` to allow routing to/from Docker networks
+- AWS Route Table: 
+  - Routes 10.13.13.0/24 traffic to VPN server's ENI
+  - Routes 172.20.0.0/16 traffic to Lab server's ENI
+- This ensures bidirectional traffic works between VPN clients and containerlab networks
 
 **Design Highlights:**
 - **Simplified**: Single subnet, no NAT instance needed
@@ -437,12 +441,23 @@ vim terraform.tfvars
 - `lab_instance_type` - Lab server size (default: r7i.xlarge)
 - `spot_max_price` - Max spot price for lab server (leave empty for on-demand price)
 - `lab_disk_size` - Disk size in GB (default: 100)
+- `example_topology_url` - URL to example containerlab topology (optional)
 
 **Region Selection:**
 Choose a region close to you for best latency. Default is us-east-2 (Ohio).
 ```hcl
 # In terraform.tfvars
 aws_region = "us-east-2"  # Default, or choose: us-east-1, us-west-2, eu-west-1, etc.
+```
+
+**Custom Topology:**
+The lab server downloads an example topology from GitHub by default. To use your own:
+```hcl
+# In terraform.tfvars
+example_topology_url = "https://example.com/my-topology.yaml"
+
+# Or skip example topology:
+example_topology_url = ""
 ```
 
 ### 2. Get Your Public IP
@@ -465,6 +480,22 @@ curl ifconfig.me
 aws ec2 create-key-pair --key-name containerlab-key \
   --query 'KeyMaterial' --output text > containerlab-key.pem
 chmod 400 containerlab-key.pem
+```
+
+### 3a. (Optional) Upload cEOS Image to S3
+
+For faster deployments, upload your cEOS image to S3 once:
+
+```bash
+# Download cEOS from Arista.com first (requires free account)
+# https://www.arista.com/en/support/software-download
+
+# Upload to S3
+BUCKET="containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+aws s3 cp cEOS64-lab-4.32.0F.tar.xz s3://${BUCKET}/images/ceos-latest.tar.xz
+
+# Future lab servers will automatically download this image during setup
+# Skip this if you prefer to manually upload to each lab server
 ```
 
 ### 4. Deploy Infrastructure
@@ -567,7 +598,35 @@ ssh admin@172.20.20.2
 
 This means you can interact with cEOS devices directly from your laptop without SSH tunneling!
 
-### Import Arista cEOS Image
+### Option 1: Upload cEOS Image to S3 (Recommended)
+
+For faster lab server deployments, upload the cEOS image to S3 once, and it will be automatically downloaded on every new lab server:
+
+```bash
+# Download cEOS image from Arista (requires free account)
+# https://www.arista.com/en/support/software-download
+# Download: cEOS64-lab-4.XX.X.tar.xz
+
+# Upload to S3 (one-time setup)
+BUCKET="containerlab-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+
+aws s3 cp cEOS64-lab-4.32.0F.tar.xz \
+  s3://${BUCKET}/images/ceos-latest.tar.xz
+
+# Future lab server deployments will automatically download and import this image
+# This saves 5-10 minutes per deployment
+```
+
+**Benefits:**
+- ✅ One-time upload (~2-3 minutes)
+- ✅ Automatic download on every lab server deployment
+- ✅ Fast lab server startup (image imports during initial setup)
+- ✅ No manual SCP transfers needed
+- ✅ Minimal cost (~$0.03/month for 1.5GB image)
+
+### Option 2: Manual Import Arista cEOS Image
+
+If you prefer not to use S3, manually transfer the image to each lab server:
 
 ```bash
 # On your local machine:
@@ -584,7 +643,7 @@ docker import cEOS64-lab-4.XX.X.tar.xz ceos:latest
 ```bash
 cd ~/containerlab-labs
 
-# Review example topology
+# Review example topology (downloaded from GitHub during setup)
 cat example-topology.yaml
 
 # Deploy
@@ -605,6 +664,8 @@ sudo containerlab inspect --all
 | 4 | arista-leaf2   | ceos        | 172.20.20.5/24    | Up    |
 +---+----------------+-------------+-------------------+-------+
 ```
+
+**Note:** If you uploaded the cEOS image to S3 (recommended), it was automatically imported during lab server setup. If you're manually importing, do that first before deploying.
 
 ### Access cEOS Instances Directly
 

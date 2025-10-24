@@ -91,3 +91,13 @@ variable "lab_disk_size" {
   # - Container storage (20-30 GB)
   # - Logs and working data (20-30 GB)
 }
+
+variable "example_topology_url" {
+  description = "URL to download example containerlab topology file"
+  type        = string
+  default     = "https://raw.githubusercontent.com/rbmacd/frey/main/lab-aws/example-topology.yaml"
+  
+  # This URL is downloaded during lab server setup
+  # Change this to use your own topology file
+  # Set to empty string ("") to skip downloading example topology
+}
