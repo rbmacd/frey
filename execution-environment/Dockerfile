@@ -2,8 +2,8 @@ FROM quay.io/ansible/awx-ee:latest
 
 USER root
 
-# Install NetBox collection to system location
-RUN ansible-galaxy collection install netbox.netbox:3.19.0 \
+# Install various NetDevOps collections to system location
+RUN ansible-galaxy collection install netbox.netbox:3.19.0 arista.eos:6.2.2 cisco.ios:5.3.0 cisco.iosxr:6.1.1 cisco.nxos:5.3.0 \
     --collections-path /usr/share/ansible/collections
 
 # Install pynetbox Python package
@@ -15,6 +15,6 @@ RUN pip3 list | grep pynetbox
 
 USER 1000
 
-LABEL name="frey-awx-netbox-ee" \
-      description="AWX Execution Environment with NetBox support" \
+LABEL name="frey-awx-ee" \
+      description="AWX Execution Environment for Frey NetDevOps services" \
       version="1.0.0"
