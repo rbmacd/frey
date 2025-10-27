@@ -30,7 +30,7 @@ read -s -p "Enter AWX admin password to store in Vault: " AWX_ADMIN_PASSWORD
 echo
 
 # Prompt for AWX ingress hostname to define in helm chart values
-read -p "Enter AWX ingress URL: " AWX_URL && export AWX_URL
+read -p "Enter AWX ingress URL: " AWX_URL 
 
 # Prompt user for SSH AWX network credential username
 read -p "Enter username for AWX's network SSH credential type: " AWX_SSH_USERNAME
@@ -107,6 +107,9 @@ if [ -z "$BRANCH_NAME" ]; then
     echo "Using default branch: $BRANCH_NAME"
 fi
 
+# Prompt for GitHub PAT
+read -s -p "Enter GitHub Personal Access Token to be used as AWX Credential: " GIT_TOKEN
+echo
 
 ### K3S ###
 
@@ -155,7 +158,7 @@ echo ""
 vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="http://netbox.netbox.svc.cluster.local" #Note the hardcoded host URL!  This is for internal cluster access from AWX->NetBox
 vault kv put secret/frey/services/awx/admin password="$AWX_ADMIN_PASSWORD"
 vault kv put secret/frey/services/awx/ssh username="$AWX_SSH_USERNAME" private_key="$(cat $SSH_KEY_PATH)" ssh_password="$AWX_SSH_PASSWORD"
-vault kv put secret/frey/services/awx/config git_repo_url="$REPO_URL" git_branch="$BRANCH_NAME"
+vault kv put secret/frey/services/awx/config git_repo_url="$REPO_URL" git_branch="$BRANCH_NAME" git_token="$GIT_TOKEN"
 
 # Validate that secrets are added properly
 until [ "$(vault kv list secret/frey/services/netbox | grep admin)" ]; do echo "Waiting for Vault to install netbox secrets..." ; sleep 1; done
@@ -200,13 +203,15 @@ kubectl wait --for=condition=Ready externalsecret/vault-external-frey-services-a
 echo ""
 echo "============================"
 echo "Installing NetBox Helm Chart"
+echo " ...be patient..."
+echo " ...this can take a while..."
 echo "============================"
 echo ""
 
 # Install NetBox using netbox-chart
 
 #helm install netbox oci://ghcr.io/netbox-community/netbox-chart/netbox --create-namespace --namespace netbox -f services/netbox/frey-netbox-values.yaml
-envsubst '${NETBOX_URL}' < services/netbox/frey-netbox-values.yaml | helm install netbox oci://ghcr.io/netbox-community/netbox-chart/netbox --create-namespace --namespace netbox -f -
+envsubst '${NETBOX_URL}' < services/netbox/frey-netbox-values.yaml | helm install netbox oci://ghcr.io/netbox-community/netbox-chart/netbox --create-namespace --wait --namespace netbox -f -
 
 ### AWX ###
 

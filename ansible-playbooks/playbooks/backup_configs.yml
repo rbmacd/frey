@@ -1,83 +1,31 @@
 ---
-- name: Backup Network Device Configurations
-  hosts: all
+- name: Backup Arista EOS Configurations
+  hosts: all  # AWX will limit to selected inventory group
   gather_facts: no
+  
   vars:
-    backup_dir: "./backups/{{ lookup('pipe', 'date +%Y%m%d') }}"
-    timestamp: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+    backup_dir: "{{ playbook_dir }}/../configs/backup"
   
   tasks:
     - name: Create backup directory
-      delegate_to: localhost
       ansible.builtin.file:
         path: "{{ backup_dir }}"
         state: directory
-        mode: '0755'
-      run_once: true
-    
-    - name: Backup Cisco IOS/IOS-XE configuration
-      cisco.ios.ios_config:
-        backup: yes
-        backup_options:
-          filename: "{{ inventory_hostname }}_{{ timestamp }}.cfg"
-          dir_path: "{{ backup_dir }}"
-      when: platform_name is defined and platform_name in ['ios', 'iosxe']
-      register: ios_backup
-    
-    - name: Backup Cisco NX-OS configuration
-      cisco.nxos.nxos_config:
-        backup: yes
-        backup_options:
-          filename: "{{ inventory_hostname }}_{{ timestamp }}.cfg"
-          dir_path: "{{ backup_dir }}"
-      when: platform_name is defined and platform_name == 'nxos'
-      register: nxos_backup
-    
-    - name: Backup Arista EOS configuration
-      arista.eos.eos_config:
-        backup: yes
-        backup_options:
-          filename: "{{ inventory_hostname }}_{{ timestamp }}.cfg"
-          dir_path: "{{ backup_dir }}"
-      when: platform_name is defined and platform_name == 'eos'
-      register: eos_backup
-    
-    - name: Backup Juniper JunOS configuration
-      junipernetworks.junos.junos_config:
-        backup: yes
-        backup_options:
-          filename: "{{ inventory_hostname }}_{{ timestamp }}.cfg"
-          dir_path: "{{ backup_dir }}"
-      when: platform_name is defined and platform_name == 'junos'
-      register: junos_backup
-    
-    - name: Generic backup using raw commands (fallback)
-      ansible.netcommon.cli_command:
-        command: show running-config
-      register: generic_config
-      when: 
-        - platform_name is defined
-        - platform_name not in ['ios', 'iosxe', 'nxos', 'eos', 'junos']
-      ignore_errors: yes
-    
-    - name: Save generic backup to file
       delegate_to: localhost
+      run_once: true
+
+    - name: Backup running configuration
+      arista.eos.eos_command:
+        commands:
+          - show running-config
+      register: config_output
+
+    - name: Save configuration to file
       ansible.builtin.copy:
-        content: "{{ generic_config.stdout }}"
-        dest: "{{ backup_dir }}/{{ inventory_hostname }}_{{ timestamp }}.cfg"
-      when: 
-        - generic_config is defined
-        - generic_config.stdout is defined
-    
-    - name: Display backup status
-      debug:
-        msg: |
-          Device: {{ inventory_hostname }}
-          Backup location: {{ backup_dir }}/{{ inventory_hostname }}_{{ timestamp }}.cfg
-          Status: Success
-      when: >
-        (ios_backup is success) or
-        (nxos_backup is success) or
-        (eos_backup is success) or
-        (junos_backup is success) or
-        (generic_config is success)
+        content: "{{ config_output.stdout[0] }}"
+        dest: "{{ backup_dir }}/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
+      delegate_to: localhost
+
+    - name: Display backup location
+      ansible.builtin.debug:
+        msg: "Configuration backed up to {{ backup_dir }}/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"

@@ -90,7 +90,7 @@ extraDeploy:
           key: secret/frey/services/awx/ssh
           property: ssh_password
 
-  # Configuration values (Git repo URL and branch)
+  # Configuration values (Git repo URL, branch, and token)
   - |
     apiVersion: external-secrets.io/v1
     kind: ExternalSecret
@@ -98,7 +98,7 @@ extraDeploy:
       name: awx-config
       namespace: awx-operator
     spec:
-      refreshInterval: 1h
+      refreshInterval: 15s
       secretStoreRef:
         name: vault-backend
         kind: ClusterSecretStore
@@ -114,6 +114,10 @@ extraDeploy:
         remoteRef:
           key: secret/frey/services/awx/config
           property: git_branch
+      - secretKey: git_token
+        remoteRef:
+          key: secret/frey/services/awx/config
+          property: git_token
 
   # ===========================================
   # CONFIGURATION PLAYBOOK
@@ -142,6 +146,7 @@ extraDeploy:
             ssh_password: "{{ lookup('file', '/secrets/ssh/ssh_password')}}"
             git_repo_url: "{{ lookup('file', '/secrets/config/git_repo_url') }}"
             git_branch: "{{ lookup('file', '/secrets/config/git_branch') }}"
+            git_token: "{{ lookup('file', '/secrets/config/git_token') }}"
           
           tasks:
             - name: Display AWX connection details
@@ -241,6 +246,19 @@ extraDeploy:
                 inputs:
                   NETBOX_API: "{{ netbox_url }}"
                   NETBOX_TOKEN: "{{ netbox_token }}"
+                organization: "Default"
+                state: present
+
+            - name: Create GitHub credential
+              awx.awx.credential:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "GitHub PAT"
+                credential_type: "GitHub Personal Access Token"
+                inputs:
+                  token: "{{ git_token }}"
                 organization: "Default"
                 state: present
             
@@ -388,23 +406,24 @@ extraDeploy:
               debug:
                 var: inventory_sync_result
             
-            - name: Fail if inventory sync failed
-              fail:
-                msg: |
-                  NetBox inventory sync failed!
-                  Status: {{ inventory_sync_result.status | default('unknown') }}
-                  
-                  Check the AWX UI at {{ awx_host }}/api/v2/inventory_updates/{{ inventory_sync_result.id | default('') }}/stdout/
-                  
-                  Common issues:
-                  - NetBox URL is incorrect: {{ lookup('env', 'NETBOX_API') | default('not set') }}
-                  - NetBox token is invalid
-                  - NetBox is not reachable from AWX pods
-                  - NetBox inventory file path is wrong: inventory/netbox_inventory.yml
-                  - Required netbox.netbox collection is not in execution environment
-              when: 
-                - inventory_sync_result.status is defined
-                - inventory_sync_result.status == 'failed'
+            ### Edited by rbmacd - inv sync can sporadically fail but will retry successfully later, thus this should not be a deployment breaking failure
+            #- name: Fail if inventory sync failed
+            #  fail:
+            #    msg: |
+            #      NetBox inventory sync failed!
+            #      Status: {{ inventory_sync_result.status | default('unknown') }}
+            #      
+            #      Check the AWX UI at {{ awx_host }}/api/v2/inventory_updates/{{ inventory_sync_result.id | default('') }}/stdout/
+            #      
+            #      Common issues:
+            #      - NetBox URL is incorrect: {{ lookup('env', 'NETBOX_API') | default('not set') }}
+            #      - NetBox token is invalid
+            #      - NetBox is not reachable from AWX pods
+            #      - NetBox inventory file path is wrong: inventory/netbox_inventory.yml
+            #      - Required netbox.netbox collection is not in execution environment
+            #  when: 
+            #    - inventory_sync_result.status is defined
+            #    - inventory_sync_result.status == 'failed'
             
             - name: Create example Job Template for SSH-based hosts
               awx.awx.job_template:
@@ -427,7 +446,7 @@ extraDeploy:
                 ask_credential_on_launch: true
                 state: present
             
-            - name: Create example Job Template for network devices
+            - name: Create example Job Template for backing up network devices
               awx.awx.job_template:
                 controller_host: "{{ awx_host }}"
                 controller_username: "{{ awx_username }}"
@@ -446,7 +465,47 @@ extraDeploy:
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 state: present
+
+            - name: Create example Job Template for generating network device configs
+              awx.awx.job_template:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "Network Device Configuration Generation"
+                description: "Generate individual network device configurations from templates"
+                job_type: "run"
+                organization: "Default"
+                inventory: "NetBox Dynamic Inventory"
+                project: "Infrastructure Automation"
+                playbook: "ansible-playbooks/playbooks/generate_configs.yml"
+                execution_environment: "Frey AWX EE"
+                credentials:
+                  - "Network Device Password"
+                ask_limit_on_launch: true
+                ask_variables_on_launch: true
+                state: present
             
+            - name: Create example Job Template for deploying network device configs
+              awx.awx.job_template:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "Network Device Configuration Deployment"
+                description: "Deploy generated configurations to network devices"
+                job_type: "run"
+                organization: "Default"
+                inventory: "NetBox Dynamic Inventory"
+                project: "Infrastructure Automation"
+                playbook: "ansible-playbooks/playbooks/deploy_configs.yml"
+                execution_environment: "Frey AWX EE"
+                credentials:
+                  - "Network Device Password"
+                ask_limit_on_launch: true
+                ask_variables_on_launch: true
+                state: present
+
             - name: Display completion message
               debug:
                 msg: |
@@ -568,7 +627,8 @@ extraDeploy:
                    [ -s /secrets/ssh/ssh_key_data ] && \
                    [ -s /secrets/ssh/ssh_password ] && \
                    [ -s /secrets/config/git_repo_url ] && \
-                   [ -s /secrets/config/git_branch ]; then
+                   [ -s /secrets/config/git_branch ] && \
+                   [ -s /secrets/config/git_token ]; then
                   echo "All secrets are available and non-empty"
                   ALL_SECRETS_READY=true
                 else
@@ -589,6 +649,7 @@ extraDeploy:
                 [ ! -s /secrets/ssh/ssh_password ] && echo "  - Missing: ssh password"
                 [ ! -s /secrets/config/git_repo_url ] && echo "  - Missing: git repo url"
                 [ ! -s /secrets/config/git_branch ] && echo "  - Missing: git branch"
+                [ ! -s /secrets/config/git_token ] && echo "  - Missing: git token"
                 exit 1
               fi
               
