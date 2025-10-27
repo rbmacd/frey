@@ -1,12 +1,30 @@
 ---
 - name: Generate Configurations from NetBox Data
-  hosts: all  # AWX limits to inventory selection
+  hosts: all
   gather_facts: yes
   
   vars:
     config_dir: "{{ playbook_dir }}/../configs/generated"
+    git_user_email: "awx-{{ awx_job_id }}@frey.example"
+    git_user_name: "AWX Job {{ awx_job_id }}"
   
   tasks:
+    - name: Configure Git identity
+      ansible.builtin.shell: |
+        git config --global user.email "{{ git_user_email }}"
+        git config --global user.name "{{ git_user_name }}"
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
+    - name: Pull latest changes from Git
+      ansible.builtin.shell: |
+        cd {{ playbook_dir }}/..
+        git pull origin {{ scm_branch | default('main') }}
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
     - name: Create generated configs directory
       ansible.builtin.file:
         path: "{{ config_dir }}"
@@ -25,7 +43,7 @@
           Ensure device has config context defined in NetBox.
         success_msg: "NetBox data validated for {{ inventory_hostname }}"
 
-    - name: Validate required NetBox config context fields (optional but recommended)
+    - name: Validate required NetBox config context fields
       ansible.builtin.assert:
         that:
           - netbox_config_context.ntp_servers is defined
@@ -33,8 +51,7 @@
           - netbox_config_context.syslog_servers is defined
         fail_msg: |
           Missing required fields in NetBox config context for {{ inventory_hostname }}.
-          Required fields: ntp_servers, dns_servers, syslog_servers
-          Please add these to the device or site config context in NetBox.
+          Required: ntp_servers, dns_servers, syslog_servers
       when: validate_netbox_data | default(true)
 
     - name: Display device information from NetBox
@@ -68,4 +85,21 @@
 
     - name: Display generated config location
       ansible.builtin.debug:
-        msg: "Configuration generated at {{ config_dir }}/{{ inventory_hostname }}.cfg"
+        msg: "Generated: {{ config_dir }}/{{ inventory_hostname }}.cfg"
+
+    - name: Commit and push generated configs to Git
+      ansible.builtin.shell: |
+        cd {{ playbook_dir }}/..
+        git add configs/generated/
+        git diff --staged --quiet || git commit -m "Generated configs from NetBox - {{ ansible_date_time.iso8601 }}"
+        git push origin {{ scm_branch | default('main') }}
+      delegate_to: localhost
+      run_once: true
+      register: git_result
+      changed_when: "'No changes' not in git_result.stdout"
+
+    - name: Display Git results
+      ansible.builtin.debug:
+        msg: "Configs committed and pushed to Git"
+      run_once: true
+      when: git_result.changed

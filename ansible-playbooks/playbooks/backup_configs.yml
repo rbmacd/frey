@@ -1,12 +1,30 @@
 ---
 - name: Backup Arista EOS Configurations
-  hosts: all  # AWX will limit to selected inventory group
-  gather_facts: no
+  hosts: all
+  gather_facts: yes
   
   vars:
     backup_dir: "{{ playbook_dir }}/../configs/backup"
+    git_user_email: "awx-{{ awx_job_id }}@frey.example"
+    git_user_name: "AWX Job {{ awx_job_id }}"
   
   tasks:
+    - name: Configure Git identity
+      ansible.builtin.shell: |
+        git config --global user.email "{{ git_user_email }}"
+        git config --global user.name "{{ git_user_name }}"
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
+    - name: Pull latest changes from Git
+      ansible.builtin.shell: |
+        cd {{ playbook_dir }}/..
+        git pull origin {{ scm_branch | default('main') }}
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
     - name: Create backup directory
       ansible.builtin.file:
         path: "{{ backup_dir }}"
@@ -26,6 +44,32 @@
         dest: "{{ backup_dir }}/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
       delegate_to: localhost
 
+    - name: Create/update latest config symlink
+      ansible.builtin.file:
+        src: "{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
+        dest: "{{ backup_dir }}/{{ inventory_hostname }}_latest.cfg"
+        state: link
+        force: yes
+      delegate_to: localhost
+      failed_when: false
+
     - name: Display backup location
       ansible.builtin.debug:
-        msg: "Configuration backed up to {{ backup_dir }}/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
+        msg: "Backed up: {{ backup_dir }}/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
+
+    - name: Commit and push backups to Git
+      ansible.builtin.shell: |
+        cd {{ playbook_dir }}/..
+        git add configs/backup/
+        git diff --staged --quiet || git commit -m "Backup configs - {{ ansible_date_time.iso8601 }}"
+        git push origin {{ scm_branch | default('main') }}
+      delegate_to: localhost
+      run_once: true
+      register: git_result
+      changed_when: "'No changes' not in git_result.stdout"
+
+    - name: Display Git results
+      ansible.builtin.debug:
+        msg: "Backups committed and pushed to Git"
+      run_once: true
+      when: git_result.changed

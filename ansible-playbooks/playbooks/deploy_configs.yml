@@ -1,12 +1,30 @@
 ---
 - name: Deploy Generated Configurations to Arista Devices
   hosts: all
-  gather_facts: no
+  gather_facts: yes
   
   vars:
     config_dir: "{{ playbook_dir }}/../configs/generated"
-    
+    git_user_email: "awx-{{ awx_job_id }}@frey.example"
+    git_user_name: "AWX Job {{ awx_job_id }}"
+  
   tasks:
+    - name: Configure Git identity
+      ansible.builtin.shell: |
+        git config --global user.email "{{ git_user_email }}"
+        git config --global user.name "{{ git_user_name }}"
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
+    - name: Pull latest generated configs from Git
+      ansible.builtin.shell: |
+        cd {{ playbook_dir }}/..
+        git pull origin {{ scm_branch | default('main') }}
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
     - name: Check if generated config exists
       ansible.builtin.stat:
         path: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
@@ -18,20 +36,30 @@
         msg: "Configuration file not found. Run generate_configs.yml first."
       when: not config_file.stat.exists
 
-    - name: Display configuration preview
+    - name: Display deployment info
       ansible.builtin.debug:
         msg: "Deploying configuration to {{ inventory_hostname }}"
 
-    - name: Deploy configuration (config mode)
+    - name: Deploy configuration
       arista.eos.eos_config:
         src: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
         replace: config
         save_when: modified
       register: config_result
-      # Add check mode support for AWX
       check_mode: "{{ ansible_check_mode | default(false) }}"
 
     - name: Display deployment results
       ansible.builtin.debug:
         msg: "Configuration {{ 'would be' if ansible_check_mode else 'was' }} deployed to {{ inventory_hostname }}"
       when: config_result.changed
+```
+
+## What This Does
+
+Now your Git commits will show up in the history like this:
+```
+commit abc123def456...
+Author: AWX Job 12345 <awx-12345@frey.example>
+Date:   Mon Oct 27 10:30:00 2025
+
+    Backup configs - 2025-10-27T10:30:00
