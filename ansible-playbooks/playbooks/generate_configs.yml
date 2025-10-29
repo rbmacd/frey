@@ -1,7 +1,8 @@
 ---
 - name: Generate Configurations from NetBox Data
   hosts: all
-  gather_facts: yes
+  gather_facts: no
+  connection: network_cli
   
   vars:
     config_dir: "{{ playbook_dir }}/../configs/generated"
