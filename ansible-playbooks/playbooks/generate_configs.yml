@@ -54,7 +54,7 @@
         that:
           - inventory_hostname is defined
           - ansible_host is defined
-          - netbox_config_context is defined
+          - config_context is defined
         fail_msg: |
           Missing required data from NetBox for {{ inventory_hostname }}.
           Ensure device has config context defined in NetBox.
@@ -63,9 +63,9 @@
     - name: Validate required NetBox config context fields
       ansible.builtin.assert:
         that:
-          - netbox_config_context.ntp_servers is defined
-          - netbox_config_context.dns_servers is defined
-          - netbox_config_context.syslog_servers is defined
+          - config_context.ntp_servers is defined
+          - config_context.dns_servers is defined
+          - config_context.syslog_servers is defined
         fail_msg: |
           Missing required fields in NetBox config context for {{ inventory_hostname }}.
           Required: ntp_servers, dns_servers, syslog_servers
@@ -87,12 +87,12 @@
       ansible.builtin.debug:
         msg: |
           NetBox config context data:
-          - VLANs: {{ netbox_config_context.vlans | default([]) | length }} configured
-          - Interfaces: {{ netbox_config_context.interfaces | default([]) | length }} configured
-          - BGP: {{ 'configured' if netbox_config_context.bgp.asn is defined else 'not configured' }}
-          - NTP: {{ netbox_config_context.ntp_servers | default([]) | length }} servers
-          - DNS: {{ netbox_config_context.dns_servers | default([]) | length }} servers
-          - Syslog: {{ netbox_config_context.syslog_servers | default([]) | length }} servers
+          - VLANs: {{ config_context.vlans | default([]) | length }} configured
+          - Interfaces: {{ config_context.interfaces | default([]) | length }} configured
+          - BGP: {{ 'configured' if config_context.bgp.asn is defined else 'not configured' }}
+          - NTP: {{ config_context.ntp_servers | default([]) | length }} servers
+          - DNS: {{ config_context.dns_servers | default([]) | length }} servers
+          - Syslog: {{ config_context.syslog_servers | default([]) | length }} servers
 
     - name: Generate configuration from template
       ansible.builtin.template:

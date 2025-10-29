@@ -1,7 +1,7 @@
 !
 ! BGP Configuration
-{% if netbox_config_context.bgp is defined %}
-{% set bgp = netbox_config_context.bgp %}
+{% if config_context.bgp is defined %}
+{% set bgp = config_context.bgp %}
 
 ! BGP Loopback (if different from VTEP)
 {% if bgp.router_id_loopback is defined %}

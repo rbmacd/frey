@@ -8,6 +8,7 @@ import yaml
 import pynetbox
 import sys
 import os
+import re
 import logging
 import argparse
 import urllib3
@@ -60,6 +61,20 @@ MANUFACTURER_TO_ANSIBLE_OS = {
     'Nokia': 'sros',
     'Generic': 'linux'
 }
+
+# Config Context Constants
+LOOPBACK_BASE = "10.255.255."
+SPINE_LOOPBACK_START = 1
+LEAF_LOOPBACK_START = 101
+BASE_ASN_SPINE = 65000
+BASE_ASN_LEAF = 65100
+
+# Default VLANs for leaf switches
+DEFAULT_VLANS = [
+    {"vid": 10, "name": "VLAN10"},
+    {"vid": 20, "name": "VLAN20"},
+    {"vid": 30, "name": "VLAN30"}
+]
 
 def load_clab_yaml(filepath):
     """Load and parse the ContainerLab YAML file"""
@@ -218,7 +233,205 @@ def set_device_custom_fields(nb, device, ansible_network_os):
     except Exception as e:
         logger.error(f"Unexpected error setting custom fields for {device.name}: {e}")
 
-def create_devices(nb, clab_data, site_id):
+def determine_device_role(device_name):
+    """Determine device role from hostname"""
+    device_lower = device_name.lower()
+    if device_lower.startswith('spine'):
+        return 'spine'
+    elif device_lower.startswith('leaf'):
+        return 'leaf'
+    elif device_lower.startswith('border'):
+        return 'border'
+    else:
+        return 'unknown'
+
+def extract_device_number(device_name):
+    """Extract numeric suffix from device name (e.g., spine01 -> 1)"""
+    match = re.search(r'(\d+)$', device_name)
+    if match:
+        return int(match.group(1))
+    return 0
+
+def generate_router_id(device_name, role):
+    """Generate router ID based on device name and role"""
+    device_num = extract_device_number(device_name)
+    
+    if role == 'spine':
+        octet = SPINE_LOOPBACK_START + device_num - 1
+    elif role == 'leaf':
+        octet = LEAF_LOOPBACK_START + device_num - 1
+    else:
+        octet = 100 + device_num
+    
+    return f"{LOOPBACK_BASE}{octet}"
+
+def generate_asn(device_name, role):
+    """Generate BGP ASN based on device role"""
+    if role == 'spine':
+        return BASE_ASN_SPINE
+    elif role == 'leaf':
+        device_num = extract_device_number(device_name)
+        return BASE_ASN_LEAF + device_num - 1
+    else:
+        return BASE_ASN_SPINE
+
+def get_connected_devices(device_name, clab_data):
+    """Get list of devices connected to this device from topology"""
+    connected = []
+    links = clab_data['topology'].get('links', [])
+    
+    for link in links:
+        endpoints = link['endpoints']
+        dev1_name, _ = endpoints[0].split(':')
+        dev2_name, _ = endpoints[1].split(':')
+        
+        if dev1_name == device_name:
+            connected.append(dev2_name)
+        elif dev2_name == device_name:
+            connected.append(dev1_name)
+    
+    return connected
+
+def generate_spine_config_context(device_name, device_data, clab_data, all_devices):
+    """Generate config context for spine switches"""
+    router_id = generate_router_id(device_name, 'spine')
+    asn = generate_asn(device_name, 'spine')
+    
+    # Get connected leaf switches
+    connected_devices = get_connected_devices(device_name, clab_data)
+    leaf_neighbors = [dev for dev in connected_devices if determine_device_role(dev) == 'leaf']
+    
+    # Build EVPN neighbor list
+    evpn_neighbors = []
+    for leaf in leaf_neighbors:
+        leaf_router_id = generate_router_id(leaf, 'leaf')
+        evpn_neighbors.append({
+            "ip": leaf_router_id,
+            "encapsulation": "vxlan"
+        })
+    
+    config_context = {
+        "bgp": {
+            "asn": asn,
+            "router_id": router_id,
+            "router_id_loopback": {
+                "id": 0,
+                "ip": f"{router_id}/32"
+            },
+            "maximum_paths": 4,
+            "ecmp_paths": 4,
+            "peer_groups": [
+                {
+                    "name": "SPINE_UNDERLAY",
+                    "remote_as": "external",
+                    "send_community": "extended"
+                },
+                {
+                    "name": "EVPN_OVERLAY",
+                    "remote_as": "external",
+                    "update_source": "Loopback0",
+                    "ebgp_multihop": 3,
+                    "send_community": "extended"
+                }
+            ],
+            "evpn": {
+                "route_reflector_client": False,
+                "neighbors": evpn_neighbors
+            }
+        },
+        "ntp_servers": ["10.0.0.100", "10.0.0.101"],
+        "dns_servers": ["10.0.0.50", "10.0.0.51"],
+        "syslog_servers": ["10.0.0.200"]
+    }
+    
+    return config_context
+
+def generate_leaf_config_context(device_name, device_data, clab_data, all_devices):
+    """Generate config context for leaf switches"""
+    router_id = generate_router_id(device_name, 'leaf')
+    asn = generate_asn(device_name, 'leaf')
+    
+    # Get connected spine switches
+    connected_devices = get_connected_devices(device_name, clab_data)
+    spine_neighbors = [dev for dev in connected_devices if determine_device_role(dev) == 'spine']
+    
+    # Build EVPN neighbor list
+    evpn_neighbors = []
+    for spine in spine_neighbors:
+        spine_router_id = generate_router_id(spine, 'spine')
+        evpn_neighbors.append({
+            "ip": spine_router_id,
+            "encapsulation": "vxlan"
+        })
+    
+    # Generate VLAN-to-VNI mappings
+    vlan_vni_mappings = []
+    for vlan in DEFAULT_VLANS:
+        vlan_vni_mappings.append({
+            "vlan": vlan["vid"],
+            "vni": 10000 + vlan["vid"]  # VLAN 10 -> VNI 10010
+        })
+    
+    config_context = {
+        "vlans": DEFAULT_VLANS,
+        "vxlan": {
+            "vtep_loopback": {
+                "id": 1,
+                "ip": f"{router_id}/32"
+            },
+            "vtep_source_interface": "Loopback1",
+            "udp_port": 4789,
+            "vlan_vni_mappings": vlan_vni_mappings
+        },
+        "bgp": {
+            "asn": asn,
+            "router_id": router_id,
+            "router_id_loopback": {
+                "id": 0,
+                "ip": f"{router_id}/32"
+            },
+            "maximum_paths": 4,
+            "ecmp_paths": 4,
+            "peer_groups": [
+                {
+                    "name": "LEAF_UNDERLAY",
+                    "remote_as": "external",
+                    "send_community": "extended"
+                },
+                {
+                    "name": "EVPN_OVERLAY",
+                    "remote_as": "external",
+                    "update_source": "Loopback0",
+                    "ebgp_multihop": 3,
+                    "send_community": "extended"
+                }
+            ],
+            "evpn": {
+                "route_reflector_client": False,
+                "neighbors": evpn_neighbors
+            }
+        },
+        "ntp_servers": ["10.0.0.100", "10.0.0.101"],
+        "dns_servers": ["10.0.0.50", "10.0.0.51"],
+        "syslog_servers": ["10.0.0.200"]
+    }
+    
+    return config_context
+
+def apply_config_context(nb, device, config_context, device_name):
+    """Apply config context to a device in NetBox"""
+    try:
+        # NetBox stores config context as local_context_data on the device
+        logger.info(f"Applying config context to {device_name}")
+        device.local_context_data = config_context
+        device.save()
+        logger.info(f"Successfully applied config context to {device_name}")
+    except RequestError as e:
+        logger.error(f"NetBox API error applying config context to {device_name}: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error applying config context to {device_name}: {e}")
+
+def create_devices(nb, clab_data, site_id, skip_config_context=False):
     """Create devices from ContainerLab topology"""
     devices = {}
     nodes = clab_data['topology']['nodes']
@@ -237,6 +450,9 @@ def create_devices(nb, clab_data, site_id):
     
     mgmt_prefix_len = mgmt_subnet.split('/')[-1]
     logger.info(f"Using management subnet: {mgmt_subnet} (prefix length: /{mgmt_prefix_len})")
+    
+    if skip_config_context:
+        logger.info("Config context generation is disabled (--skip-config-context)")
     
     logger.info(f"Processing {len(nodes)} devices")
     
@@ -279,6 +495,17 @@ def create_devices(nb, clab_data, site_id):
             # Determine and set ansible_network_os
             ansible_os = get_ansible_network_os(kind, manufacturer_name)
             set_device_custom_fields(nb, device, ansible_os)
+            
+            # Apply config context for network devices (unless skipped)
+            if not skip_config_context:
+                device_role = determine_device_role(node_name)
+                if device_role in ['spine', 'leaf']:
+                    if device_role == 'spine':
+                        config_context = generate_spine_config_context(node_name, node_data, clab_data, nodes)
+                    elif device_role == 'leaf':
+                        config_context = generate_leaf_config_context(node_name, node_data, clab_data, nodes)
+                    
+                    apply_config_context(nb, device, config_context, node_name)
             
             # Create management IP if specified
             if mgmt_ip:
@@ -448,11 +675,14 @@ Environment Variables Required:
 Examples:
   %(prog)s clab.yml
   %(prog)s --no-ssl-verify clab.yml
+  %(prog)s --skip-config-context clab.yml
         """
     )
     parser.add_argument('clab_file', help='Path to ContainerLab YAML file')
     parser.add_argument('--no-ssl-verify', action='store_true',
                         help='Disable SSL certificate verification (insecure)')
+    parser.add_argument('--skip-config-context', action='store_true',
+                        help='Skip generating and applying config contexts to devices')
     
     args = parser.parse_args()
     
@@ -507,7 +737,7 @@ Examples:
         logger.info("=" * 50)
         logger.info("Creating devices...")
         logger.info("=" * 50)
-        devices = create_devices(nb, clab_data, site.id)
+        devices = create_devices(nb, clab_data, site.id, skip_config_context=args.skip_config_context)
         
         # Create interfaces and links
         logger.info("=" * 50)
