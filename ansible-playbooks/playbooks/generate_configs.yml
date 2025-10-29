@@ -7,7 +7,7 @@
   vars:
     config_dir: "{{ playbook_dir }}/../configs/generated"
     git_work_dir: "/tmp/ansible-git-work"
-    git_repo_url: "{{ lookup('env', 'AWX_PROJECT_REPO_URL') | default('https://github.com/your-org/your-repo.git', true) }}"
+    git_repo_url: "{{ lookup('env', 'AWX_PROJECT_REPO_URL') | default('https://github.com/rbmacd/frey.git', true) }}"
     git_branch: "{{ scm_branch | default('main') }}"
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
