@@ -64,6 +64,12 @@
       ansible.builtin.debug:
         var: config_context
 
+    - name: DEBUG FOR RM - print contents of config_context data structure
+      ansible.builtin.debug:
+        var: config_context.ntp_servers
+        var: config_context.dns_servers
+        var: config_context.syslog_servers
+
     - name: Validate required NetBox config context fields
       ansible.builtin.assert:
         that:
