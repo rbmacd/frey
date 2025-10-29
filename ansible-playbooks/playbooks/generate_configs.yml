@@ -68,14 +68,14 @@
 
     - name: DEBUG FOR RM - print contents of config_context data within structure
       ansible.builtin.debug:
-        var: config_context.ntp_servers
+        var: config_context[0].ntp_servers
 
     - name: Validate required NetBox config context fields
       ansible.builtin.assert:
         that:
-          - config_context.ntp_servers is defined
-          - config_context.dns_servers is defined
-          - config_context.syslog_servers is defined
+          - config_context[0].ntp_servers is defined
+          - config_context[0].dns_servers is defined
+          - config_context[0].syslog_servers is defined
         fail_msg: |
           Missing required fields in NetBox config context for {{ inventory_hostname }}.
           Required: ntp_servers, dns_servers, syslog_servers
@@ -97,12 +97,12 @@
       ansible.builtin.debug:
         msg: |
           NetBox config context data:
-          - VLANs: {{ config_context.vlans | default([]) | length }} configured
-          - Interfaces: {{ config_context.interfaces | default([]) | length }} configured
-          - BGP: {{ 'configured' if config_context.bgp.asn is defined else 'not configured' }}
-          - NTP: {{ config_context.ntp_servers | default([]) | length }} servers
-          - DNS: {{ config_context.dns_servers | default([]) | length }} servers
-          - Syslog: {{ config_context.syslog_servers | default([]) | length }} servers
+          - VLANs: {{ config_context[0].vlans | default([]) | length }} configured
+          - Interfaces: {{ config_context[0].interfaces | default([]) | length }} configured
+          - BGP: {{ 'configured' if config_context[0].bgp.asn is defined else 'not configured' }}
+          - NTP: {{ config_context[0].ntp_servers | default([]) | length }} servers
+          - DNS: {{ config_context[0].dns_servers | default([]) | length }} servers
+          - Syslog: {{ config_context[0].syslog_servers | default([]) | length }} servers
 
     - name: Generate configuration from template
       ansible.builtin.template:

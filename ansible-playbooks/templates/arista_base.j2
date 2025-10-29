@@ -3,21 +3,21 @@
 hostname {{ inventory_hostname }}
 !
 ! DNS Configuration
-{% if config_context.dns_servers is defined %}
-{% for dns in config_context.dns_servers %}
+{% if config_context[0].dns_servers is defined %}
+{% for dns in config_context[0].dns_servers %}
 ip name-server vrf default {{ dns }}
 {% endfor %}
 {% endif %}
 !
 ! NTP Configuration
-{% if config_context.ntp_servers is defined %}
-{% for ntp in config_context.ntp_servers %}
+{% if config_context[0].ntp_servers is defined %}
+{% for ntp in config_context[0].ntp_servers %}
 ntp server {{ ntp }}
 {% endfor %}
 {% endif %}
 !
 ! Timezone
-clock timezone {{ config_context.timezone | default('UTC') }}
+clock timezone {{ config_context[0].timezone | default('UTC') }}
 !
 ! Banner - Customized by device role
 banner motd
@@ -46,16 +46,16 @@ banner motd
 EOF
 !
 ! SNMP Configuration
-{% if config_context.snmp_community is defined %}
-snmp-server community {{ config_context.snmp_community }} ro
+{% if config_context[0].snmp_community is defined %}
+snmp-server community {{ config_context[0].snmp_community }} ro
 {% endif %}
-{% if config_context.snmp_location is defined %}
-snmp-server location {{ config_context.snmp_location }}
+{% if config_context[0].snmp_location is defined %}
+snmp-server location {{ config_context[0].snmp_location }}
 {% endif %}
 !
 ! Logging
-{% if config_context.syslog_servers is defined %}
-{% for syslog in config_context.syslog_servers %}
+{% if config_context[0].syslog_servers is defined %}
+{% for syslog in config_context[0].syslog_servers %}
 logging host {{ syslog }}
 {% endfor %}
 {% endif %}
