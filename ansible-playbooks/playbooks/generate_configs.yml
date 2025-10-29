@@ -6,10 +6,26 @@
   
   vars:
     config_dir: "{{ playbook_dir }}/../configs/generated"
+    git_work_dir: "/tmp/ansible-git-work"
+    git_repo_url: "{{ lookup('env', 'AWX_PROJECT_REPO_URL') | default('https://github.com/your-org/your-repo.git', true) }}"
+    git_branch: "{{ scm_branch | default('main') }}"
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
   
   tasks:
+    - name: Get timestamp from localhost
+      ansible.builtin.setup:
+        gather_subset:
+          - date_time
+      delegate_to: localhost
+      run_once: true
+      register: localhost_facts
+
+    - name: Set timestamp fact
+      ansible.builtin.set_fact:
+        current_timestamp: "{{ localhost_facts.ansible_facts.ansible_date_time.iso8601 }}"
+      run_once: true
+
     - name: Configure Git identity
       ansible.builtin.shell: |
         git config --global user.email "{{ git_user_email }}"
@@ -18,17 +34,17 @@
       run_once: true
       changed_when: false
 
-    - name: Pull latest changes from Git
+    - name: Clone repository to working directory
       ansible.builtin.shell: |
-        cd {{ playbook_dir }}/..
-        git pull origin {{ scm_branch | default('main') }}
+        rm -rf {{ git_work_dir }}
+        git clone --depth 1 --branch {{ git_branch }} {{ git_repo_url }} {{ git_work_dir }}
       delegate_to: localhost
       run_once: true
       changed_when: false
 
-    - name: Create generated configs directory
+    - name: Create generated configs directory in git working directory
       ansible.builtin.file:
-        path: "{{ config_dir }}"
+        path: "{{ git_work_dir }}/configs/generated"
         state: directory
       delegate_to: localhost
       run_once: true
@@ -81,26 +97,38 @@
     - name: Generate configuration from template
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/arista_full_config.j2"
-        dest: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
+        dest: "{{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
       delegate_to: localhost
 
     - name: Display generated config location
       ansible.builtin.debug:
-        msg: "Generated: {{ config_dir }}/{{ inventory_hostname }}.cfg"
+        msg: "Generated: {{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
 
     - name: Commit and push generated configs to Git
       ansible.builtin.shell: |
-        cd {{ playbook_dir }}/..
+        cd {{ git_work_dir }}
         git add configs/generated/
-        git diff --staged --quiet || git commit -m "Generated configs from NetBox - {{ ansible_date_time.iso8601 }}"
-        git push origin {{ scm_branch | default('main') }}
+        if git diff --staged --quiet; then
+          echo "no_changes"
+          exit 0
+        fi
+        git commit -m "Generated configs from NetBox - {{ current_timestamp }}"
+        git push origin {{ git_branch }}
       delegate_to: localhost
       run_once: true
       register: git_result
-      changed_when: "'No changes' not in git_result.stdout"
+      changed_when: "'no_changes' not in git_result.stdout"
 
     - name: Display Git results
       ansible.builtin.debug:
         msg: "Configs committed and pushed to Git"
       run_once: true
       when: git_result.changed
+
+    - name: Cleanup working directory
+      ansible.builtin.file:
+        path: "{{ git_work_dir }}"
+        state: absent
+      delegate_to: localhost
+      run_once: true
+      when: cleanup_git_work_dir | default(true)
