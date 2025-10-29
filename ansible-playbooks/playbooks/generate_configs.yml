@@ -60,16 +60,6 @@
           Ensure device has config context defined in NetBox.
         success_msg: "NetBox data validated for {{ inventory_hostname }}"
 
-    - name: DEBUG FOR RM - print contents of config_context data structure
-      ansible.builtin.debug:
-        msg:
-        - "Type: {{ config_context | type_debug }}"
-        - "Content: {{ config_context }}"
-
-    - name: DEBUG FOR RM - print contents of config_context data within structure
-      ansible.builtin.debug:
-        var: config_context[0].ntp_servers
-
     - name: Validate required NetBox config context fields
       ansible.builtin.assert:
         that:
@@ -116,6 +106,7 @@
 
     - name: Commit and push generated configs to Git
       ansible.builtin.shell: |
+        set timeout 60
         cd {{ git_work_dir }}
         git add configs/generated/
         if git diff --staged --quiet; then
