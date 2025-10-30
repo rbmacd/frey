@@ -8,7 +8,7 @@
     config_dir: "{{ playbook_dir }}/../configs/generated"
     git_work_dir: "/tmp/ansible-git-work"
     git_repo_url: "{{ git_repo_url }}" #Inserted in Job Template definition
-    git_branch: configs
+    git_branch: main
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
     git_username: "{{ lookup('env', 'GITHUB_USERNAME') }}"

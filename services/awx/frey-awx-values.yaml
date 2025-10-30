@@ -90,7 +90,7 @@ extraDeploy:
           key: secret/frey/services/awx/ssh
           property: ssh_password
 
-  # Configuration values (Git repo URL, branch, username, and token)
+  # Configuration values (Git project repo URL, branch, username, token, and Git repo URL for network device config files)
   - |
     apiVersion: external-secrets.io/v1
     kind: ExternalSecret
@@ -122,6 +122,10 @@ extraDeploy:
         remoteRef:
           key: secret/frey/services/awx/config
           property: git_username
+      - secretKey: git_cfg_repo
+        remoteRef: 
+          key: secret/frey/services/awx/config
+          property: git_cfg_repo
 
   # ===========================================
   # CONFIGURATION PLAYBOOK
@@ -152,6 +156,7 @@ extraDeploy:
             git_branch: "{{ lookup('file', '/secrets/config/git_branch') }}"
             git_token: "{{ lookup('file', '/secrets/config/git_token') }}"
             git_username: "{{ lookup('file', '/secrets/config/git_username') }}"
+            git_cfg_repo: "{{ lookup('file', '/secrets/config/git_cfg_repo')}}"
           
           tasks:
             - name: Display AWX connection details
@@ -479,7 +484,7 @@ extraDeploy:
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 extra_vars:
-                  git_repo_url: "{{ git_repo_url }}"
+                  git_cfg_repo: "{{ git_cfg_repo }}"
                 state: present
 
             - name: Create example Job Template for generating network device configs
@@ -502,7 +507,7 @@ extraDeploy:
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 extra_vars:
-                  git_repo_url: "{{ git_repo_url }}"
+                  git_cfg_repo: "{{ git_cfg_repo }}"
                 state: present
             
             - name: Create example Job Template for deploying network device configs
@@ -525,7 +530,7 @@ extraDeploy:
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 extra_vars:
-                  git_repo_url: "{{ git_repo_url }}"
+                  git_cfg_repo: "{{ git_cfg_repo }}"
                 state: present
 
             - name: Display completion message
@@ -651,6 +656,7 @@ extraDeploy:
                    [ -s /secrets/config/git_repo_url ] && \
                    [ -s /secrets/config/git_branch ] && \
                    [ -s /secrets/config/git_username ] && \
+                   [ -s /secrets/config/git_cfg_repo ] && \
                    [ -s /secrets/config/git_token ]; then
                   echo "All secrets are available and non-empty"
                   ALL_SECRETS_READY=true
@@ -674,6 +680,7 @@ extraDeploy:
                 [ ! -s /secrets/config/git_branch ] && echo "  - Missing: git branch"
                 [ ! -s /secrets/config/git_token ] && echo "  - Missing: git token"
                 [ ! -s /secrets/config/git_username ] && echo "  - Missing: git username"
+                [ ! -s /secrets/config/git_cfg_repo ] && echo "  - Missing: git config repo URL"
                 exit 1
               fi
               
