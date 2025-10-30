@@ -39,7 +39,8 @@
 
     - name: Backup running configuration
       arista.eos.eos_command:
-        authorize: true
+        become: true
+        become_method: enable
         commands:
           - show running-config
       register: config_output
