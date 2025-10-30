@@ -14,16 +14,6 @@
     git_token: "{{ lookup('env', 'GITHUB_TOKEN')}}"
       
   tasks:
-    - name: temp tshoot - show variable values
-      ansible.builtin.debug:
-        msg: |
-          git_work_dir: {{git_work_dir}}
-          git_user_email: {{git_user_email}}
-          git_user_name: {{git_user_name}}
-          git_repo_url: {{git_repo_url}}
-          git_branch: {{git_branch}}
-          git_username: {{git_username}}
-
     - name: Get timestamp from localhost
       ansible.builtin.setup:
         gather_subset:
@@ -73,10 +63,6 @@
         dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
       delegate_to: localhost
 
-    - name: Troubleshoot - display config_output
-      ansible.builtin.debug:
-        msg: "{{ config_output.stdout[1] }}"
-
     - name: Create/update latest config symlink
       ansible.builtin.file:
         src: "{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
@@ -94,6 +80,11 @@
       ansible.builtin.shell: |
         cd {{ git_work_dir }}
         git add configs/backup/
+        if git diff --staged --quiet; then
+          echo "no_changes"
+          exit 0
+        fi
+        git commit -m "Backup configs - {{ current_timestamp }}"
         git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[8:] }} # Strip https:// from git_repo_url 
         git push origin {{ git_branch }}
       delegate_to: localhost
