@@ -14,6 +14,19 @@
     git_token: "{{ lookup('env', 'GITHUB_TOKEN')}}"
       
   tasks:
+    - name: Get timestamp from localhost
+      ansible.builtin.setup:
+        gather_subset:
+          - date_time
+      delegate_to: localhost
+      run_once: true
+      register: localhost_facts
+
+    - name: Set timestamp fact
+      ansible.builtin.set_fact:
+        current_timestamp: "{{ localhost_facts.ansible_facts.ansible_date_time.iso8601 }}"
+      run_once: true
+
     - name: Configure Git identity
       ansible.builtin.shell: |
         git config --global user.email "{{ git_user_email }}"
@@ -47,12 +60,12 @@
     - name: Save configuration to file
       ansible.builtin.copy:
         content: "{{ config_output.stdout[0] }}"
-        dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ localhost_facts.ansible_facts.ansible_date_time.date }}.cfg"
+        dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
       delegate_to: localhost
 
     - name: Create/update latest config symlink
       ansible.builtin.file:
-        src: "{{ inventory_hostname }}_{{ localhost_facts.ansible_facts.ansible_date_time.date }}.cfg"
+        src: "{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
         dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_latest.cfg"
         state: link
         force: yes
@@ -61,7 +74,7 @@
 
     - name: Display backup location
       ansible.builtin.debug:
-        msg: "Backed up: {{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ localhost_facts.ansible_facts.ansible_date_time.date }}.cfg"
+        msg: "Backed up: {{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
 
     - name: Commit and push backup configs to Git
       ansible.builtin.shell: |
