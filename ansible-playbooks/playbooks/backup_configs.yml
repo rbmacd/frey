@@ -47,7 +47,7 @@
     - name: Save configuration to file
       ansible.builtin.copy:
         content: "{{ config_output.stdout[0] }}"
-        dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
+        dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ localhost_facts.ansible_facts.ansible_date_time.date }}.cfg"
       delegate_to: localhost
 
     - name: Create/update latest config symlink
@@ -61,7 +61,7 @@
 
     - name: Display backup location
       ansible.builtin.debug:
-        msg: "Backed up: {{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
+        msg: "Backed up: {{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ localhost_facts.ansible_facts.ansible_date_time.date }}.cfg"
 
     - name: Commit and push backup configs to Git
       ansible.builtin.shell: |
