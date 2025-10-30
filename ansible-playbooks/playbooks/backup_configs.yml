@@ -91,9 +91,5 @@
       run_once: true
       register: git_result
       changed_when: "'no_changes' not in git_result.stdout"
-      #no_log: true
+      no_log: true
       timeout: 60
-
-    - name: Troubleshoot git commits for backup configs
-      ansible.builtin.debug:
-        var: git_result
