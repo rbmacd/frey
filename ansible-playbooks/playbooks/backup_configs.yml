@@ -101,4 +101,4 @@
 
     - name: Troubleshoot git commits for backup configs
       ansible.builtin.debug:
-        msg: "{{git_result.stdout}}"
+        var: git_result
