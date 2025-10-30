@@ -42,6 +42,7 @@
         become: true
         become_method: enable
         commands:
+          - enable
           - show running-config
       register: config_output
 
