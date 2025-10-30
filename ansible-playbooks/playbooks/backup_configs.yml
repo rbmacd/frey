@@ -24,7 +24,7 @@
 
     - name: Set timestamp fact
       ansible.builtin.set_fact:
-        current_timestamp: "{{ localhost_facts.ansible_facts.ansible_date_time.iso8601 }}"
+        current_timestamp: "{{ localhost_facts.ansible_facts.ansible_date_time.iso8601 | replace(':','-')}}"
       run_once: true
 
     - name: Configure Git identity
