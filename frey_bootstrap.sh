@@ -7,11 +7,21 @@
 ### CREDENTIALS ###
 
 # Prompt for Vault root token to use
+echo "====================="
+echo " Vault Configuration "
+echo "====================="
+echo ""
+
 read -s -p "Enter Vault root token to use: " VAULT_TOKEN
 echo
 
-
 # Prompt for NetBox admin password to store in Vault
+echo ""
+echo "====================="
+echo " NetBox Configuration "
+echo "====================="
+echo ""
+
 read -s -p "Enter NetBox admin password to store in Vault: " NETBOX_ADMIN_PASSWORD
 echo
 
@@ -24,23 +34,38 @@ read -p "Enter NetBox ingress URL: " NETBOX_URL && export NETBOX_URL
 # Generate NetBox API token
 export NETBOX_APITOKEN=$(openssl rand -hex 20)
 
+# Begin AWX config prompts
+echo ""
+echo "====================="
+echo " AWX Configuration "
+echo "====================="
+echo ""
 
 # Prompt for AWX admin password to store in Vault
-read -s -p "Enter AWX admin password to store in Vault: " AWX_ADMIN_PASSWORD
+read -s -p "Enter admin password for AWX access to store in Vault: " AWX_ADMIN_PASSWORD
 echo
 
 # Prompt for AWX ingress hostname to define in helm chart values
 read -p "Enter AWX ingress URL: " AWX_URL 
 
+echo ""
+echo "-------------------------------------------"
+echo " AWX Credential Configuration "
+echo ""
+echo "  Define credentials used within playbooks"
+echo "   executed by AWX"
+echo "-------------------------------------------"
+echo ""
+
 # Prompt user for SSH AWX network credential username
-read -p "Enter username for AWX's network SSH credential type: " AWX_SSH_USERNAME
+read -p "AWX credential config - Enter username for AWX's network SSH credential type: " AWX_SSH_USERNAME
 
 # Prompt user for SSH AWX network credential password
-read -s -p "Enter password for AWX's network password to store in Vault: " AWX_SSH_PASSWORD
+read -s -p "AWX credential config - Enter password for AWX's network password to store in Vault: " AWX_SSH_PASSWORD
 echo
 
 # Prompt user for SSH private key location. If no key is provided, generate one.
-read -p "Enter the path to your SSH private key to be used as an AWX credential [~/.ssh/ansible_id_rsa]: " SSH_KEY_PATH
+read -p "AWX credential config - Enter the path to your SSH private key to be used as an AWX credential [~/.ssh/ansible_id_rsa]: " SSH_KEY_PATH
 
 # Check if user provided a valid file path
 if [ -z "$SSH_KEY_PATH" ]; then
@@ -83,14 +108,30 @@ else
     fi
 fi
 
+# Prompt for GitHub username
+read -p "AWX credential config - Enter GitHub username to be used as AWX Credential: " GIT_USERNAME
+
+# Prompt for GitHub PAT
+read -s -p "AWX credential config - Enter GitHub Personal Access Token to be used as AWX Credential: " GIT_TOKEN
+echo
+
 # Prompt user for AWX git URL & branch name.  If no URL is provided, use Frey's github and main.
+
+echo ""
+echo "------------------------------------------------"
+echo " AWX Project Configuration "
+echo "  Define source control config for AWX's Project"
+echo ""
+echo "  This is NOT the same as AWX credential config"
+echo "------------------------------------------------"
+echo ""
 
 # Set default values
 DEFAULT_REPO_URL="https://github.com/rbmacd/frey.git"
 DEFAULT_BRANCH="main"
 
 # Prompt user for GitHub repository URL
-read -p "Enter GitHub repository URL to seed AWX [${DEFAULT_REPO_URL}]: " REPO_URL
+read -p "Enter GitHub repository URL for AWX's project [${DEFAULT_REPO_URL}]: " REPO_URL
 
 # Use default if no input provided
 if [ -z "$REPO_URL" ]; then
@@ -99,20 +140,13 @@ if [ -z "$REPO_URL" ]; then
 fi
 
 # Prompt user for branch name
-read -p "Enter branch name [${DEFAULT_BRANCH}]: " BRANCH_NAME
+read -p "Enter branch name for AWX project source control [${DEFAULT_BRANCH}]: " BRANCH_NAME
 
 # Use default if no input provided
 if [ -z "$BRANCH_NAME" ]; then
     BRANCH_NAME="$DEFAULT_BRANCH"
     echo "Using default branch: $BRANCH_NAME"
 fi
-
-# Prompt for GitHub username
-read -p "Enter GitHub username to be used as AWX Credential: " GIT_USERNAME
-
-# Prompt for GitHub PAT
-read -s -p "Enter GitHub Personal Access Token to be used as AWX Credential: " GIT_TOKEN
-echo
 
 ### K3S ###
 
