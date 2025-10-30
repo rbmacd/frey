@@ -69,13 +69,13 @@
 
     - name: Save configuration to file
       ansible.builtin.copy:
-        content: "{{ config_output.stdout[0] }}"
+        content: "{{ config_output.stdout[1] }}"
         dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
       delegate_to: localhost
 
     - name: Troubleshoot - display config_output
       ansible.builtin.debug:
-        msg: "{{ config_output.stdout }}"
+        msg: "{{ config_output.stdout[1] }}"
 
     - name: Create/update latest config symlink
       ansible.builtin.file:
