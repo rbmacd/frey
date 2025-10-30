@@ -7,7 +7,7 @@
   vars:
     config_dir: "{{ playbook_dir }}/../configs/generated"
     git_work_dir: "/tmp/ansible-git-work"
-    git_repo_url: "{{ lookup('env', 'AWX_PROJECT_REPO_URL') }}"
+    git_repo_url: "{{ git_repo_url }}" #Inserted in Job Template definition
     git_branch: "{{ scm_branch | default('main') }}"
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
@@ -39,7 +39,6 @@
     - name: Clone repository to working directory
       ansible.builtin.shell: |
         rm -rf {{ git_work_dir }}
-        mkdir {{ git_work_dir }}
         git clone --depth 1 --branch {{ git_branch }} {{ git_repo_url }} {{ git_work_dir }}
       delegate_to: localhost
       run_once: true
