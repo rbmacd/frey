@@ -479,7 +479,7 @@ extraDeploy:
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 extra_vars:
-                  - git_repo_url: "{{ git_repo_url }}"
+                  git_repo_url: "{{ git_repo_url }}"
                 state: present
 
             - name: Create example Job Template for generating network device configs
@@ -502,7 +502,7 @@ extraDeploy:
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 extra_vars:
-                  - git_repo_url: "{{ git_repo_url }}"
+                  git_repo_url: "{{ git_repo_url }}"
                 state: present
             
             - name: Create example Job Template for deploying network device configs
@@ -525,7 +525,7 @@ extraDeploy:
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 extra_vars:
-                  - git_repo_url: "{{ git_repo_url }}"
+                  git_repo_url: "{{ git_repo_url }}"
                 state: present
 
             - name: Display completion message
