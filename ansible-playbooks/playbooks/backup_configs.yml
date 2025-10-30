@@ -78,7 +78,7 @@
 
     - name: Commit and push backup configs to Git
       ansible.builtin.shell: |
-        cd {{ playbook_dir }}/..
+        cd {{ git_work_dir }}
         git add configs/backup/
         if git diff --staged --quiet; then
           echo "no_changes"
