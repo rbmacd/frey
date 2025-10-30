@@ -121,7 +121,7 @@
       run_once: true
       register: git_result
       changed_when: "'no_changes' not in git_result.stdout"
-      no_log: true
+      #no_log: true
       timeout: 60
 
     - name: Display Git results
