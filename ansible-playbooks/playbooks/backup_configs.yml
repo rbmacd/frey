@@ -2,6 +2,7 @@
 - name: Backup Arista EOS Configurations
   hosts: all
   gather_facts: no
+  connection: network_cli
   
   vars:
     git_work_dir: "/tmp/ansible-git-work"
