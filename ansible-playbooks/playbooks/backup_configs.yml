@@ -90,10 +90,6 @@
       ansible.builtin.shell: |
         cd {{ git_work_dir }}
         git add configs/backup/
-        if git diff --staged --quiet; then
-          echo "no_changes"
-          exit 0
-        fi
         git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[8:] }} # Strip https:// from git_repo_url 
         git push origin {{ git_branch }}
       delegate_to: localhost
@@ -103,8 +99,6 @@
       #no_log: true
       timeout: 60
 
-    - name: Display Git results
+    - name: Troubleshoot git commits for backup configs
       ansible.builtin.debug:
-        msg: "Backups committed and pushed to Git"
-      run_once: true
-      when: git_result.changed
+        msg: git_result.stdout
