@@ -75,7 +75,7 @@
 
     - name: Troubleshoot - display config_output
       ansible.builtin.debug:
-        msg: "{{ config_output.stdout[0] }}"
+        msg: "{{ config_output.stdout }}"
 
     - name: Create/update latest config symlink
       ansible.builtin.file:
