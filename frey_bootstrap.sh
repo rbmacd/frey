@@ -107,6 +107,9 @@ if [ -z "$BRANCH_NAME" ]; then
     echo "Using default branch: $BRANCH_NAME"
 fi
 
+# Prompt for GitHub username
+read -p "Enter GitHub username to be used as AWX Credential: " GIT_USERNAME
+
 # Prompt for GitHub PAT
 read -s -p "Enter GitHub Personal Access Token to be used as AWX Credential: " GIT_TOKEN
 echo
@@ -158,7 +161,7 @@ echo ""
 vault kv put secret/frey/services/netbox/admin username='admin' password="$NETBOX_ADMIN_PASSWORD" email="$NETBOX_ADMIN_EMAIL" api_token="$NETBOX_APITOKEN" host="http://netbox.netbox.svc.cluster.local" #Note the hardcoded host URL!  This is for internal cluster access from AWX->NetBox
 vault kv put secret/frey/services/awx/admin password="$AWX_ADMIN_PASSWORD"
 vault kv put secret/frey/services/awx/ssh username="$AWX_SSH_USERNAME" private_key="$(cat $SSH_KEY_PATH)" ssh_password="$AWX_SSH_PASSWORD"
-vault kv put secret/frey/services/awx/config git_repo_url="$REPO_URL" git_branch="$BRANCH_NAME" git_token="$GIT_TOKEN"
+vault kv put secret/frey/services/awx/config git_repo_url="$REPO_URL" git_branch="$BRANCH_NAME" git_token="$GIT_TOKEN" git_username="$GIT_USERNAME"
 
 # Validate that secrets are added properly
 until [ "$(vault kv list secret/frey/services/netbox | grep admin)" ]; do echo "Waiting for Vault to install netbox secrets..." ; sleep 1; done

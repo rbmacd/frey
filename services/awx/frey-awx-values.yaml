@@ -90,7 +90,7 @@ extraDeploy:
           key: secret/frey/services/awx/ssh
           property: ssh_password
 
-  # Configuration values (Git repo URL, branch, and token)
+  # Configuration values (Git repo URL, branch, username, and token)
   - |
     apiVersion: external-secrets.io/v1
     kind: ExternalSecret
@@ -118,6 +118,10 @@ extraDeploy:
         remoteRef:
           key: secret/frey/services/awx/config
           property: git_token
+      - secretKey: git_username
+        remoteRef:
+          key: secret/frey/services/awx/config
+          property: git_username
 
   # ===========================================
   # CONFIGURATION PLAYBOOK
@@ -147,6 +151,7 @@ extraDeploy:
             git_repo_url: "{{ lookup('file', '/secrets/config/git_repo_url') }}"
             git_branch: "{{ lookup('file', '/secrets/config/git_branch') }}"
             git_token: "{{ lookup('file', '/secrets/config/git_token') }}"
+            git_username: "{{ lookup('file', '/secrets/config/git_username') }}"
           
           tasks:
             - name: Display AWX connection details
@@ -249,6 +254,32 @@ extraDeploy:
                 organization: "Default"
                 state: present
 
+            - name: Create GitHub credential type for use in AWX Projects
+              awx.awx.credential_type:
+                controller_host: "{{ awx_host }}"
+                controller_username: "{{ awx_username }}"
+                controller_password: "{{ awx_password }}"
+                validate_certs: false
+                name: "GitHub PAT for AWX Projects"
+                kind: "cloud"
+                inputs:
+                  fields:
+                    - id: GITHUB_USERNAME
+                      type: string
+                      label: "GitHub Username"
+                    - id: GITHUB_TOKEN
+                      type: string
+                      label: "GitHub Personal Access Token"
+                      secret: true
+                  required:
+                    - GITHUB_USERNAME
+                    - GITHUB_TOKEN
+                injectors:
+                  env:
+                    GITHUB_USERNAME: "{{ git_username }}"
+                    GITHUB_TOKEN: "{{ git_token }}"
+                state: present
+
             - name: Create GitHub credential
               awx.awx.credential:
                 controller_host: "{{ awx_host }}"
@@ -256,9 +287,10 @@ extraDeploy:
                 controller_password: "{{ awx_password }}"
                 validate_certs: false
                 name: "GitHub PAT"
-                credential_type: "GitHub Personal Access Token"
+                credential_type: "GitHub PAT for AWX Projects"
                 inputs:
-                  token: "{{ git_token }}"
+                  GITHUB_USERNAME: "{{ git_username }}"
+                  GITHUB_TOKEN: "{{ git_token }}"
                 organization: "Default"
                 state: present
             
@@ -400,30 +432,11 @@ extraDeploy:
                 wait: true
                 timeout: 300
               register: inventory_sync_result
-              failed_when: false
+              failed_when: false  #An inventory sync failure can be transient and should not halt deployment
             
             - name: Display inventory sync result
               debug:
                 var: inventory_sync_result
-            
-            ### Edited by rbmacd - inv sync can sporadically fail but will retry successfully later, thus this should not be a deployment breaking failure
-            #- name: Fail if inventory sync failed
-            #  fail:
-            #    msg: |
-            #      NetBox inventory sync failed!
-            #      Status: {{ inventory_sync_result.status | default('unknown') }}
-            #      
-            #      Check the AWX UI at {{ awx_host }}/api/v2/inventory_updates/{{ inventory_sync_result.id | default('') }}/stdout/
-            #      
-            #      Common issues:
-            #      - NetBox URL is incorrect: {{ lookup('env', 'NETBOX_API') | default('not set') }}
-            #      - NetBox token is invalid
-            #      - NetBox is not reachable from AWX pods
-            #      - NetBox inventory file path is wrong: inventory/netbox_inventory.yml
-            #      - Required netbox.netbox collection is not in execution environment
-            #  when: 
-            #    - inventory_sync_result.status is defined
-            #    - inventory_sync_result.status == 'failed'
             
             - name: Create example Job Template for SSH-based hosts
               awx.awx.job_template:
@@ -462,6 +475,7 @@ extraDeploy:
                 execution_environment: "Frey AWX EE"
                 credentials:
                   - "Network Device Password"
+                  - "GitHub PAT"
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 state: present
@@ -482,6 +496,7 @@ extraDeploy:
                 execution_environment: "Frey AWX EE"
                 credentials:
                   - "Network Device Password"
+                  - "GitHub PAT"
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 state: present
@@ -502,6 +517,7 @@ extraDeploy:
                 execution_environment: "Frey AWX EE"
                 credentials:
                   - "Network Device Password"
+                  - "GitHub PAT"
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 state: present
@@ -628,6 +644,7 @@ extraDeploy:
                    [ -s /secrets/ssh/ssh_password ] && \
                    [ -s /secrets/config/git_repo_url ] && \
                    [ -s /secrets/config/git_branch ] && \
+                   [ -s /secrets/config/git_username ] && \
                    [ -s /secrets/config/git_token ]; then
                   echo "All secrets are available and non-empty"
                   ALL_SECRETS_READY=true
@@ -650,6 +667,7 @@ extraDeploy:
                 [ ! -s /secrets/config/git_repo_url ] && echo "  - Missing: git repo url"
                 [ ! -s /secrets/config/git_branch ] && echo "  - Missing: git branch"
                 [ ! -s /secrets/config/git_token ] && echo "  - Missing: git token"
+                [ ! -s /secrets/config/git_username ] && echo "  - Missing: git username"
                 exit 1
               fi
               

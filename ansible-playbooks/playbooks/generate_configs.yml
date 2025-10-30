@@ -7,10 +7,12 @@
   vars:
     config_dir: "{{ playbook_dir }}/../configs/generated"
     git_work_dir: "/tmp/ansible-git-work"
-    git_repo_url: "{{ lookup('env', 'AWX_PROJECT_REPO_URL') | default('https://github.com/rbmacd/frey.git', true) }}"
+    git_repo_url: "{{ lookup('env', 'AWX_PROJECT_REPO_URL') }}"
     git_branch: "{{ scm_branch | default('main') }}"
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
+    git_username: "{{ lookup('env', 'GITHUB_USERNAME') }}"
+    git_token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
   
   tasks:
     - name: Get timestamp from localhost
@@ -106,7 +108,6 @@
 
     - name: Commit and push generated configs to Git
       ansible.builtin.shell: |
-        set timeout 60
         cd {{ git_work_dir }}
         git add configs/generated/
         if git diff --staged --quiet; then
@@ -114,11 +115,14 @@
           exit 0
         fi
         git commit -m "Generated configs from NetBox - {{ current_timestamp }}"
+        git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[7:] }} # Strip https:// from git_repo_url 
         git push origin {{ git_branch }}
       delegate_to: localhost
       run_once: true
       register: git_result
       changed_when: "'no_changes' not in git_result.stdout"
+      no_log: true
+      timeout: 60
 
     - name: Display Git results
       ansible.builtin.debug:
