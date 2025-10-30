@@ -5,7 +5,6 @@
   connection: network_cli
   
   vars:
-    config_dir: "{{ playbook_dir }}/../configs/generated"
     git_work_dir: "/tmp/ansible-git-work"
     git_repo_url: "{{ git_cfg_repo }}" #Inserted in Job Template definition
     git_branch: main

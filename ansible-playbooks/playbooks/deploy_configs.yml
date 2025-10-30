@@ -1,12 +1,16 @@
 ---
 - name: Deploy Generated Configurations to Arista Devices
   hosts: all
-  gather_facts: yes
-  
+  gather_facts: no
+  connection: network_cli
+
   vars:
-    config_dir: "{{ playbook_dir }}/../configs/generated"
+    git_work_dir: "/tmp/ansible-git-work"
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
+    git_repo_url: "{{ git_cfg_repo }}" #Inserted in Job Template definition
+    git_branch: main
+    ansible_check_mode: false
   
   tasks:
     - name: Configure Git identity
@@ -17,17 +21,17 @@
       run_once: true
       changed_when: false
 
-    - name: Pull latest generated configs from Git
+    - name: Clone repository to working directory
       ansible.builtin.shell: |
-        cd {{ playbook_dir }}/..
-        git pull origin {{ scm_branch | default('main') }}
+        rm -rf {{ git_work_dir }}
+        git clone --depth 1 --branch {{ git_branch }} {{ git_repo_url }} {{ git_work_dir }}
       delegate_to: localhost
       run_once: true
       changed_when: false
 
     - name: Check if generated config exists
       ansible.builtin.stat:
-        path: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
+        path: "{{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
       delegate_to: localhost
       register: config_file
 
@@ -42,7 +46,7 @@
 
     - name: Deploy configuration
       arista.eos.eos_config:
-        src: "{{ config_dir }}/{{ inventory_hostname }}.cfg"
+        src: "{{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
         replace: config
         save_when: modified
       register: config_result
@@ -52,14 +56,3 @@
       ansible.builtin.debug:
         msg: "Configuration {{ 'would be' if ansible_check_mode else 'was' }} deployed to {{ inventory_hostname }}"
       when: config_result.changed
-```
-
-## What This Does
-
-Now your Git commits will show up in the history like this:
-```
-commit abc123def456...
-Author: AWX Job 12345 <awx-12345@frey.example>
-Date:   Mon Oct 27 10:30:00 2025
-
-    Backup configs - 2025-10-27T10:30:00
