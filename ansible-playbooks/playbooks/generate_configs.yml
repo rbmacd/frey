@@ -115,7 +115,7 @@
           exit 0
         fi
         git commit -m "Generated configs from NetBox - {{ current_timestamp }}"
-        git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[7:] }} # Strip https:// from git_repo_url 
+        git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[8:] }} # Strip https:// from git_repo_url 
         git push origin {{ git_branch }}
       delegate_to: localhost
       run_once: true
