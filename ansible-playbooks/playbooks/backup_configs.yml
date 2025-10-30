@@ -4,10 +4,14 @@
   gather_facts: yes
   
   vars:
-    backup_dir: "{{ playbook_dir }}/../configs/backup"
+    git_work_dir: "/tmp/ansible-git-work"
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
-  
+    git_repo_url: "{{ git_cfg_repo }}" #Inserted in Job Template
+    git_branch: main
+    git_username: "{{ lookup('env', 'GITHUB_USERNAME') }}"
+    git_token: "{{ lookup('env', 'GITHUB_TOKEN')}}"
+      
   tasks:
     - name: Configure Git identity
       ansible.builtin.shell: |
@@ -17,17 +21,17 @@
       run_once: true
       changed_when: false
 
-    - name: Pull latest changes from Git
+    - name: Clone repository to working directory
       ansible.builtin.shell: |
-        cd {{ playbook_dir }}/..
-        git pull origin {{ scm_branch | default('main') }}
+        rm -rf {{ git_work_dir }}
+        git clone --depth 1 --branch {{ git_branch }} {{ git_repo_url }} {{ git_work_dir }}
       delegate_to: localhost
       run_once: true
       changed_when: false
 
-    - name: Create backup directory
+    - name: Create backup configs directory in git working directory
       ansible.builtin.file:
-        path: "{{ backup_dir }}"
+        path: "{{ git_work_dir }}/configs/backup"
         state: directory
       delegate_to: localhost
       run_once: true
@@ -41,13 +45,13 @@
     - name: Save configuration to file
       ansible.builtin.copy:
         content: "{{ config_output.stdout[0] }}"
-        dest: "{{ backup_dir }}/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
+        dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
       delegate_to: localhost
 
     - name: Create/update latest config symlink
       ansible.builtin.file:
-        src: "{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
-        dest: "{{ backup_dir }}/{{ inventory_hostname }}_latest.cfg"
+        src: "{{ inventory_hostname }}_{{ localhost_facts.ansible_facts.ansible_date_time.date }}.cfg"
+        dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_latest.cfg"
         state: link
         force: yes
       delegate_to: localhost
@@ -55,18 +59,24 @@
 
     - name: Display backup location
       ansible.builtin.debug:
-        msg: "Backed up: {{ backup_dir }}/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
+        msg: "Backed up: {{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg"
 
-    - name: Commit and push backups to Git
+    - name: Commit and push backup configs to Git
       ansible.builtin.shell: |
         cd {{ playbook_dir }}/..
         git add configs/backup/
-        git diff --staged --quiet || git commit -m "Backup configs - {{ ansible_date_time.iso8601 }}"
-        git push origin {{ scm_branch | default('main') }}
+        if git diff --staged --quiet; then
+          echo "no_changes"
+          exit 0
+        fi
+        git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[8:] }} # Strip https:// from git_repo_url 
+        git push origin {{ git_branch }}
       delegate_to: localhost
       run_once: true
       register: git_result
-      changed_when: "'No changes' not in git_result.stdout"
+      changed_when: "'no_changes' not in git_result.stdout"
+      no_log: true
+      timeout: 60
 
     - name: Display Git results
       ansible.builtin.debug:
