@@ -49,7 +49,7 @@
         src: "{{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
         replace: config
         save_when: modified
-      become: true
+        authorize: yes
       register: config_result
       check_mode: "{{ ansible_check_mode | default(false) }}"
 
