@@ -292,21 +292,107 @@ def get_connected_devices(device_name, clab_data):
     
     return connected
 
+def calculate_topology_depth(clab_data):
+    """
+    Calculate the depth of the network topology to determine eBGP multihop value.
+    Returns the maximum number of hops between any spine and leaf device.
+    """
+    nodes = clab_data['topology']['nodes']
+    
+    # Identify all spine and leaf devices
+    spines = [name for name in nodes.keys() if determine_device_role(name) == 'spine']
+    leafs = [name for name in nodes.keys() if determine_device_role(name) == 'leaf']
+    
+    if not spines or not leafs:
+        # If no spine-leaf topology detected, return default
+        return 2
+    
+    # Build adjacency graph
+    adjacency = {}
+    links = clab_data['topology'].get('links', [])
+    
+    for link in links:
+        endpoints = link['endpoints']
+        dev1_name, _ = endpoints[0].split(':')
+        dev2_name, _ = endpoints[1].split(':')
+        
+        if dev1_name not in adjacency:
+            adjacency[dev1_name] = []
+        if dev2_name not in adjacency:
+            adjacency[dev2_name] = []
+        
+        adjacency[dev1_name].append(dev2_name)
+        adjacency[dev2_name].append(dev1_name)
+    
+    # BFS to find shortest path from a spine to a leaf
+    def bfs_shortest_path(start, targets):
+        """Find shortest path from start to any target using BFS"""
+        if start in targets:
+            return 0
+        
+        queue = [(start, 0)]
+        visited = {start}
+        
+        while queue:
+            current, depth = queue.pop(0)
+            
+            for neighbor in adjacency.get(current, []):
+                if neighbor in visited:
+                    continue
+                    
+                if neighbor in targets:
+                    return depth + 1
+                
+                visited.add(neighbor)
+                queue.append((neighbor, depth + 1))
+        
+        return 0  # No path found
+    
+    # Find maximum depth from any spine to any leaf
+    max_depth = 0
+    for spine in spines:
+        depth = bfs_shortest_path(spine, set(leafs))
+        max_depth = max(max_depth, depth)
+    
+    # eBGP multihop should be at least depth + 1 for safety
+    # For direct spine-leaf: depth=1, multihop=2
+    # For spine-superspine-leaf: depth=2, multihop=3
+    ebgp_multihop = max_depth + 1
+    
+    logger.info(f"Detected topology depth: {max_depth} hops, setting eBGP multihop to {ebgp_multihop}")
+    
+    return ebgp_multihop
+
 def generate_spine_config_context(device_name, device_data, clab_data, all_devices):
     """Generate config context for spine switches"""
     router_id = generate_router_id(device_name, 'spine')
     asn = generate_asn(device_name, 'spine')
     
+    # Calculate eBGP multihop based on topology depth
+    ebgp_multihop = calculate_topology_depth(clab_data)
+    
     # Get connected leaf switches
     connected_devices = get_connected_devices(device_name, clab_data)
     leaf_neighbors = [dev for dev in connected_devices if determine_device_role(dev) == 'leaf']
     
-    # Build EVPN neighbor list
+    # Build underlay BGP neighbor list with leaf ASNs
+    underlay_neighbors = []
+    for leaf in leaf_neighbors:
+        leaf_asn = generate_asn(leaf, 'leaf')
+        underlay_neighbors.append({
+            "peer_group": "SPINE_UNDERLAY",
+            "remote_as": leaf_asn
+        })
+    
+    # Build EVPN overlay neighbor list with leaf router IDs
     evpn_neighbors = []
     for leaf in leaf_neighbors:
         leaf_router_id = generate_router_id(leaf, 'leaf')
+        leaf_asn = generate_asn(leaf, 'leaf')
         evpn_neighbors.append({
             "ip": leaf_router_id,
+            "remote_as": leaf_asn,
+            "peer_group": "EVPN_OVERLAY",
             "encapsulation": "vxlan"
         })
     
@@ -323,19 +409,17 @@ def generate_spine_config_context(device_name, device_data, clab_data, all_devic
             "peer_groups": [
                 {
                     "name": "SPINE_UNDERLAY",
-                    "remote_as": "external",
                     "send_community": "extended"
                 },
                 {
                     "name": "EVPN_OVERLAY",
-                    "remote_as": "external",
                     "update_source": "Loopback0",
-                    "ebgp_multihop": 3,
+                    "ebgp_multihop": ebgp_multihop,
                     "send_community": "extended"
                 }
             ],
+            "underlay_neighbors": underlay_neighbors,
             "evpn": {
-                "route_reflector_client": False,
                 "neighbors": evpn_neighbors
             }
         },
@@ -351,16 +435,31 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
     router_id = generate_router_id(device_name, 'leaf')
     asn = generate_asn(device_name, 'leaf')
     
+    # Calculate eBGP multihop based on topology depth
+    ebgp_multihop = calculate_topology_depth(clab_data)
+    
     # Get connected spine switches
     connected_devices = get_connected_devices(device_name, clab_data)
     spine_neighbors = [dev for dev in connected_devices if determine_device_role(dev) == 'spine']
     
-    # Build EVPN neighbor list
+    # Build underlay BGP neighbor list with spine ASN
+    underlay_neighbors = []
+    for spine in spine_neighbors:
+        spine_asn = generate_asn(spine, 'spine')
+        underlay_neighbors.append({
+            "peer_group": "LEAF_UNDERLAY",
+            "remote_as": spine_asn
+        })
+    
+    # Build EVPN overlay neighbor list with spine router IDs
     evpn_neighbors = []
     for spine in spine_neighbors:
         spine_router_id = generate_router_id(spine, 'spine')
+        spine_asn = generate_asn(spine, 'spine')
         evpn_neighbors.append({
             "ip": spine_router_id,
+            "remote_as": spine_asn,
+            "peer_group": "EVPN_OVERLAY",
             "encapsulation": "vxlan"
         })
     
@@ -395,19 +494,17 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
             "peer_groups": [
                 {
                     "name": "LEAF_UNDERLAY",
-                    "remote_as": "external",
                     "send_community": "extended"
                 },
                 {
                     "name": "EVPN_OVERLAY",
-                    "remote_as": "external",
                     "update_source": "Loopback0",
-                    "ebgp_multihop": 3,
+                    "ebgp_multihop": ebgp_multihop,
                     "send_community": "extended"
                 }
             ],
+            "underlay_neighbors": underlay_neighbors,
             "evpn": {
-                "route_reflector_client": False,
                 "neighbors": evpn_neighbors
             }
         },
