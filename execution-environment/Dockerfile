@@ -7,7 +7,10 @@ RUN ansible-galaxy collection install netbox.netbox:3.19.0 arista.eos:6.2.2 cisc
     --collections-path /usr/share/ansible/collections
 
 # Install pynetbox Python package
-RUN pip3 install --no-cache-dir pynetbox==7.4.0 netaddr
+RUN pip3 install --no-cache-dir pynetbox==7.4.0 
+
+# Install netaddr Python package
+RUN pip3 install --no-cache-dir netaddr
 
 # Verify installations
 RUN ansible-galaxy collection list | grep netbox
