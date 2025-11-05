@@ -61,6 +61,11 @@ logging host {{ syslog }}
 {% endif %}
 logging buffered 10000
 !
+! Users
+username admin privilege 15 role network-admin secret sha512 $6$wI/1gZmxd5NNx0tI$vFwxFGzNYqKapXy5Pjf4wYmFX2mXb58fFa3hRF3KWyAUQXtpeZHfFs8kMrCCzWIB6VjXSqMKX8tUKNWbJyDqQ.
+!
+! AAA
+aaa authorization exec default local
 !
 interface Management0
    description Management Interface
