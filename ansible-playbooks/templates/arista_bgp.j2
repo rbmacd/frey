@@ -69,14 +69,17 @@ router bgp {{ bgp.asn }}
    {% endfor %}
    {% endif %}
    !
-   ! Underlay BGP Neighbors (interface-based peering)
-   ! Note: Underlay neighbors use interface IPs from physical interfaces
-   ! These should be configured on the routed interfaces (Ethernet interfaces)
-   {% if bgp.underlay_neighbors is defined and interfaces is defined %}
-   {% for idx, neighbor in enumerate(bgp.underlay_neighbors) %}
-   {% if interfaces[idx] is defined and interfaces[idx].ipv4_address is defined %}
-   neighbor {{ interfaces[idx].ipv4_address | ipaddr('address') }} peer group {{ neighbor.peer_group }}
-   neighbor {{ interfaces[idx].ipv4_address | ipaddr('address') }} remote-as {{ neighbor.remote_as }}
+   ! Underlay BGP Neighbors
+   ! Note: For underlay neighbors to work, add "ip" field to each neighbor in config_context
+   ! Example: {"ip": "10.0.0.0", "peer_group": "LEAF_UNDERLAY", "remote_as": 65000}
+   {% if bgp.underlay_neighbors is defined %}
+   {% for neighbor in bgp.underlay_neighbors %}
+   {% if neighbor.ip is defined %}
+   neighbor {{ neighbor.ip }} peer group {{ neighbor.peer_group }}
+   neighbor {{ neighbor.ip }} remote-as {{ neighbor.remote_as }}
+   {% if neighbor.description is defined %}
+   neighbor {{ neighbor.ip }} description {{ neighbor.description }}
+   {% endif %}
    {% endif %}
    {% endfor %}
    {% endif %}
