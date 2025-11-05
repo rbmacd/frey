@@ -61,8 +61,6 @@ logging host {{ syslog }}
 {% endif %}
 logging buffered 10000
 !
-! Users
-username admin privilege 15 role network-admin secret admin
 !
 ! AAA
 aaa authorization exec default local
