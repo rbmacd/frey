@@ -69,6 +69,9 @@ LEAF_LOOPBACK_START = 101
 BASE_ASN_SPINE = 65000
 BASE_ASN_LEAF = 65100
 
+# P2P Link addressing
+P2P_LINK_BASE = "10.0."  # Will be 10.0.{link_index}.{0,1}/31
+
 # Default VLANs for leaf switches
 DEFAULT_VLANS = [
     {"vid": 10, "name": "VLAN10"},
@@ -275,6 +278,67 @@ def generate_asn(device_name, role):
     else:
         return BASE_ASN_SPINE
 
+def calculate_p2p_ips(link_index, device_type):
+    """
+    Calculate point-to-point IPs for spine-leaf links using /31 subnets.
+    
+    Address scheme: 10.0.{link_index}.{0,1}/31
+    - Spine gets .0 (even)
+    - Leaf gets .1 (odd)
+    
+    Args:
+        link_index: Index of the link (0, 1, 2, ...)
+        device_type: 'spine' or 'leaf'
+    
+    Returns:
+        tuple: (local_ip, peer_ip) both as strings
+    """
+    if device_type == 'leaf':
+        local_ip = f"{P2P_LINK_BASE}{link_index}.1/31"
+        peer_ip = f"{P2P_LINK_BASE}{link_index}.0"
+    else:  # spine
+        local_ip = f"{P2P_LINK_BASE}{link_index}.0/31"
+        peer_ip = f"{P2P_LINK_BASE}{link_index}.1"
+    
+    return local_ip, peer_ip
+
+def get_device_links(device_name, clab_data):
+    """
+    Get detailed link information for a specific device.
+    
+    Returns list of dicts with:
+    - remote_device: name of connected device
+    - local_interface: local interface name
+    - remote_interface: remote interface name
+    - link_index: index of this link
+    """
+    links = []
+    link_index = 0
+    
+    for link in clab_data['topology'].get('links', []):
+        endpoints = link['endpoints']
+        dev1_name, intf1_name = endpoints[0].split(':')
+        dev2_name, intf2_name = endpoints[1].split(':')
+        
+        if dev1_name == device_name:
+            links.append({
+                'remote_device': dev2_name,
+                'local_interface': intf1_name,
+                'remote_interface': intf2_name,
+                'link_index': link_index
+            })
+        elif dev2_name == device_name:
+            links.append({
+                'remote_device': dev1_name,
+                'local_interface': intf2_name,
+                'remote_interface': intf1_name,
+                'link_index': link_index
+            })
+        
+        link_index += 1
+    
+    return links
+
 def get_connected_devices(device_name, clab_data):
     """Get list of devices connected to this device from topology"""
     connected = []
@@ -371,21 +435,32 @@ def generate_spine_config_context(device_name, device_data, clab_data, all_devic
     # Calculate eBGP multihop based on topology depth
     ebgp_multihop = calculate_topology_depth(clab_data)
     
-    # Get connected leaf switches
-    connected_devices = get_connected_devices(device_name, clab_data)
-    leaf_neighbors = [dev for dev in connected_devices if determine_device_role(dev) == 'leaf']
+    # Get all links for this spine
+    all_links = get_device_links(device_name, clab_data)
     
-    # Build underlay BGP neighbor list with leaf ASNs
+    # Filter for leaf connections
+    leaf_links = [link for link in all_links if determine_device_role(link['remote_device']) == 'leaf']
+    
+    # Build underlay BGP neighbor list WITH peer IPs
     underlay_neighbors = []
-    for leaf in leaf_neighbors:
-        leaf_asn = generate_asn(leaf, 'leaf')
+    for link in leaf_links:
+        leaf_name = link['remote_device']
+        leaf_asn = generate_asn(leaf_name, 'leaf')
+        
+        # Calculate P2P IPs for this link
+        local_ip, peer_ip = calculate_p2p_ips(link['link_index'], 'spine')
+        
         underlay_neighbors.append({
+            "ip": peer_ip,  # KEY ADDITION - the leaf's IP on this link
+            "interface": link['local_interface'],
             "peer_group": "SPINE_UNDERLAY",
-            "remote_as": leaf_asn
+            "remote_as": leaf_asn,
+            "description": leaf_name
         })
     
     # Build EVPN overlay neighbor list with leaf router IDs
     evpn_neighbors = []
+    leaf_neighbors = [link['remote_device'] for link in leaf_links]
     for leaf in leaf_neighbors:
         leaf_router_id = generate_router_id(leaf, 'leaf')
         leaf_asn = generate_asn(leaf, 'leaf')
@@ -438,21 +513,32 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
     # Calculate eBGP multihop based on topology depth
     ebgp_multihop = calculate_topology_depth(clab_data)
     
-    # Get connected spine switches
-    connected_devices = get_connected_devices(device_name, clab_data)
-    spine_neighbors = [dev for dev in connected_devices if determine_device_role(dev) == 'spine']
+    # Get all links for this leaf
+    all_links = get_device_links(device_name, clab_data)
     
-    # Build underlay BGP neighbor list with spine ASN
+    # Filter for spine connections
+    spine_links = [link for link in all_links if determine_device_role(link['remote_device']) == 'spine']
+    
+    # Build underlay BGP neighbor list WITH peer IPs
     underlay_neighbors = []
-    for spine in spine_neighbors:
-        spine_asn = generate_asn(spine, 'spine')
+    for link in spine_links:
+        spine_name = link['remote_device']
+        spine_asn = generate_asn(spine_name, 'spine')
+        
+        # Calculate P2P IPs for this link
+        local_ip, peer_ip = calculate_p2p_ips(link['link_index'], 'leaf')
+        
         underlay_neighbors.append({
+            "ip": peer_ip,  # KEY ADDITION - the spine's IP on this link
+            "interface": link['local_interface'],
             "peer_group": "LEAF_UNDERLAY",
-            "remote_as": spine_asn
+            "remote_as": spine_asn,
+            "description": spine_name
         })
     
     # Build EVPN overlay neighbor list with spine router IDs
     evpn_neighbors = []
+    spine_neighbors = [link['remote_device'] for link in spine_links]
     for spine in spine_neighbors:
         spine_router_id = generate_router_id(spine, 'spine')
         spine_asn = generate_asn(spine, 'spine')
