@@ -31,9 +31,9 @@ interface {{ interface.name }}
 {% endfor %}
 {% endif %}
 
-! If config_context has interfaces (alternate structure)
-{% if config_context.interfaces is defined %}
-{% for interface in config_context.interfaces %}
+! If config_context[0] has interfaces (alternate structure)
+{% if config_context[0].interfaces is defined %}
+{% for interface in config_context[0].interfaces %}
 interface {{ interface.name }}
    {% if interface.description is defined %}
    description {{ interface.description }}

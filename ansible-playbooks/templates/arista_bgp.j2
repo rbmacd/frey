@@ -1,7 +1,7 @@
 !
 ! BGP Configuration
-{% if config_context.bgp is defined %}
-{% set bgp = config_context.bgp %}
+{% if config_context[0].bgp is defined %}
+{% set bgp = config_context[0].bgp %}
 
 ! BGP Loopback (Router ID)
 {% if bgp.router_id_loopback is defined %}
