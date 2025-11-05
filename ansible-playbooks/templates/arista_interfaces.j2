@@ -1,16 +1,19 @@
 !
 ! Physical Interfaces
-{% if config_context[0].interfaces is defined %}
-{% for interface in config_context[0].interfaces %}
+! Note: This template expects interface data from NetBox or Ansible inventory
+! If using NetBox, interfaces are typically available via the 'interfaces' variable from dynamic inventory
+{% if interfaces is defined %}
+{% for interface in interfaces %}
 interface {{ interface.name }}
    {% if interface.description is defined %}
    description {{ interface.description }}
    {% endif %}
-   {% if interface.enabled == false %}
+   {% if interface.enabled is defined and interface.enabled == false %}
    shutdown
    {% else %}
    no shutdown
    {% endif %}
+   {% if interface.mode is defined %}
    {% if interface.mode == 'access' %}
    switchport mode access
    switchport access vlan {{ interface.vlan }}
@@ -19,7 +22,40 @@ interface {{ interface.name }}
    switchport trunk allowed vlan {{ interface.allowed_vlans | join(',') }}
    {% elif interface.mode == 'routed' %}
    no switchport
+   {% if interface.ipv4_address is defined %}
+   ip address {{ interface.ipv4_address }}
+   {% endif %}
+   {% endif %}
+   {% endif %}
+!
+{% endfor %}
+{% endif %}
+
+! If config_context has interfaces (alternate structure)
+{% if config_context.interfaces is defined %}
+{% for interface in config_context.interfaces %}
+interface {{ interface.name }}
+   {% if interface.description is defined %}
+   description {{ interface.description }}
+   {% endif %}
+   {% if interface.enabled is defined and interface.enabled == false %}
+   shutdown
+   {% else %}
+   no shutdown
+   {% endif %}
+   {% if interface.mode is defined %}
+   {% if interface.mode == 'access' %}
+   switchport mode access
+   switchport access vlan {{ interface.vlan }}
+   {% elif interface.mode == 'trunk' %}
+   switchport mode trunk
+   switchport trunk allowed vlan {{ interface.allowed_vlans | join(',') }}
+   {% elif interface.mode == 'routed' %}
+   no switchport
+   {% if interface.ip_address is defined %}
    ip address {{ interface.ip_address }}
+   {% endif %}
+   {% endif %}
    {% endif %}
 !
 {% endfor %}

@@ -1,9 +1,9 @@
 !
 ! BGP Configuration
-{% if config_context[0].bgp is defined %}
-{% set bgp = config_context[0].bgp %}
+{% if config_context.bgp is defined %}
+{% set bgp = config_context.bgp %}
 
-! BGP Loopback (if different from VTEP)
+! BGP Loopback (Router ID)
 {% if bgp.router_id_loopback is defined %}
 interface Loopback{{ bgp.router_id_loopback.id }}
    description BGP Router ID
@@ -46,6 +46,7 @@ router bgp {{ bgp.asn }}
    distance bgp {{ bgp.distance.external }} {{ bgp.distance.internal }} {{ bgp.distance.local }}
    {% endif %}
    !
+   ! Peer Groups
    {% if bgp.peer_groups is defined %}
    {% for pg in bgp.peer_groups %}
    neighbor {{ pg.name }} peer group
@@ -59,7 +60,7 @@ router bgp {{ bgp.asn }}
    neighbor {{ pg.name }} ebgp-multihop {{ pg.ebgp_multihop }}
    {% endif %}
    {% if pg.send_community is defined %}
-   neighbor {{ pg.name }} send-community{% if pg.send_community == 'extended' %} extended{% elif pg.send_community == 'both' %} extended{% endif %}
+   neighbor {{ pg.name }} send-community {{ pg.send_community }}
    {% endif %}
    {% if pg.next_hop_self is defined and pg.next_hop_self %}
    neighbor {{ pg.name }} next-hop-self
@@ -68,19 +69,15 @@ router bgp {{ bgp.asn }}
    {% endfor %}
    {% endif %}
    !
-   {% if bgp.neighbors is defined %}
-   {% for neighbor in bgp.neighbors %}
-   neighbor {{ neighbor.ip }} peer group {{ neighbor.peer_group | default('') }}
-   {% if neighbor.remote_as is defined %}
-   neighbor {{ neighbor.ip }} remote-as {{ neighbor.remote_as }}
+   ! Underlay BGP Neighbors (interface-based peering)
+   ! Note: Underlay neighbors use interface IPs from physical interfaces
+   ! These should be configured on the routed interfaces (Ethernet interfaces)
+   {% if bgp.underlay_neighbors is defined and interfaces is defined %}
+   {% for idx, neighbor in enumerate(bgp.underlay_neighbors) %}
+   {% if interfaces[idx] is defined and interfaces[idx].ipv4_address is defined %}
+   neighbor {{ interfaces[idx].ipv4_address | ipaddr('address') }} peer group {{ neighbor.peer_group }}
+   neighbor {{ interfaces[idx].ipv4_address | ipaddr('address') }} remote-as {{ neighbor.remote_as }}
    {% endif %}
-   {% if neighbor.description is defined %}
-   neighbor {{ neighbor.ip }} description {{ neighbor.description }}
-   {% endif %}
-   {% if neighbor.update_source is defined %}
-   neighbor {{ neighbor.ip }} update-source {{ neighbor.update_source }}
-   {% endif %}
-   !
    {% endfor %}
    {% endif %}
    !
