@@ -67,11 +67,5 @@ username admin privilege 15 role network-admin secret admin
 ! AAA
 aaa authorization exec default local
 !
-! Management Interface
-interface Management1
-   description Management Interface
-   vrf default
-   ip address {{ ansible_host }}/24
-!
 ! Enable IP routing
 ip routing
