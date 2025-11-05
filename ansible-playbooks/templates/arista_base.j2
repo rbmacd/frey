@@ -62,6 +62,12 @@ logging host {{ syslog }}
 logging buffered 10000
 !
 !
+interface Management1
+   description Management Interface
+   ip address {{ ansible_host }}/24
+!
+ip route 0.0.0.0/0 172.20.20.1 #to be updated to a dynamic value later
+!
 ! AAA
 aaa authorization exec default local
 !
