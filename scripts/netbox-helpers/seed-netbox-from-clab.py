@@ -747,6 +747,39 @@ def create_management_ip(nb, device, mgmt_ip, prefix_len):
     except Exception as e:
         logger.error(f"Unexpected error creating IP for {device.name}: {e}")
 
+def assign_interface_ip(nb, interface, ip_with_mask, description=""):
+    """Assign an IP address to an interface in NetBox"""
+    try:
+        # Check if IP already exists
+        existing_ip = nb.ipam.ip_addresses.get(address=ip_with_mask)
+        
+        if not existing_ip:
+            logger.info(f"Assigning IP {ip_with_mask} to {interface.device.name}:{interface.name}")
+            
+            # Create the IP address
+            ip_obj = nb.ipam.ip_addresses.create(
+                address=ip_with_mask,
+                assigned_object_type='dcim.interface',
+                assigned_object_id=interface.id,
+                description=description
+            )
+        else:
+            # Update existing IP if not assigned to this interface
+            if not existing_ip.assigned_object_id or existing_ip.assigned_object_id != interface.id:
+                logger.info(f"Updating IP {ip_with_mask} assignment to {interface.device.name}:{interface.name}")
+                existing_ip.assigned_object_type = 'dcim.interface'
+                existing_ip.assigned_object_id = interface.id
+                if description:
+                    existing_ip.description = description
+                existing_ip.save()
+            else:
+                logger.debug(f"IP {ip_with_mask} already assigned to {interface.device.name}:{interface.name}")
+                
+    except RequestError as e:
+        logger.error(f"NetBox API error assigning IP {ip_with_mask} to {interface.device.name}:{interface.name}: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error assigning IP to interface: {e}")
+
 def create_interfaces_and_links(nb, clab_data, devices):
     """Create interfaces and links from ContainerLab topology"""
     links = clab_data['topology'].get('links', [])
@@ -754,7 +787,7 @@ def create_interfaces_and_links(nb, clab_data, devices):
     logger.info(f"Processing {len(links)} links")
     successful_links = 0
     
-    for link in links:
+    for link_index, link in enumerate(links):
         try:
             endpoints = link['endpoints']
             
@@ -770,9 +803,36 @@ def create_interfaces_and_links(nb, clab_data, devices):
                 logger.warning(f"Could not find devices for link {endpoints}")
                 continue
             
+            # Determine device roles
+            device1_role = determine_device_role(device1_name)
+            device2_role = determine_device_role(device2_name)
+            
             # Create interfaces
             intf1 = get_or_create_interface(nb, device1, intf1_name)
             intf2 = get_or_create_interface(nb, device2, intf2_name)
+            
+            # Assign IP addresses for spine-leaf links
+            if intf1 and intf2 and {device1_role, device2_role} == {'spine', 'leaf'}:
+                # Set descriptions (routed interfaces don't need mode set)
+                intf1.description = f"to_{device2_name}"
+                intf2.description = f"to_{device1_name}"
+                
+                intf1.save()
+                intf2.save()
+                
+                # Calculate and assign IPs
+                if device1_role == 'spine':
+                    spine_intf, leaf_intf = intf1, intf2
+                    spine_role, leaf_role = device1_role, device2_role
+                else:
+                    spine_intf, leaf_intf = intf2, intf1
+                    spine_role, leaf_role = device2_role, device1_role
+                
+                spine_ip, _ = calculate_p2p_ips(link_index, 'spine')
+                leaf_ip, _ = calculate_p2p_ips(link_index, 'leaf')
+                
+                assign_interface_ip(nb, spine_intf, spine_ip, f"P2P link {link_index}")
+                assign_interface_ip(nb, leaf_intf, leaf_ip, f"P2P link {link_index}")
             
             # Create cable connection
             if intf1 and intf2:

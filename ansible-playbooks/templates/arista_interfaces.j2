@@ -1,62 +1,32 @@
 !
 ! Physical Interfaces
-! Note: This template expects interface data from NetBox or Ansible inventory
-! If using NetBox, interfaces are typically available via the 'interfaces' variable from dynamic inventory
 {% if interfaces is defined %}
 {% for interface in interfaces %}
+{% if interface.type.value in ['1000base-t', '10gbase-x-sfpp'] %}
 interface {{ interface.name }}
-   {% if interface.description is defined %}
+   {% if interface.description %}
    description {{ interface.description }}
    {% endif %}
-   {% if interface.enabled is defined and interface.enabled == false %}
+   {% if interface.enabled == false %}
    shutdown
    {% else %}
    no shutdown
    {% endif %}
-   {% if interface.mode is defined %}
-   {% if interface.mode == 'access' %}
+   {% if interface.mode and interface.mode.value == 'access' %}
    switchport mode access
-   switchport access vlan {{ interface.vlan }}
-   {% elif interface.mode == 'trunk' %}
+   switchport access vlan {{ interface.untagged_vlan.vid }}
+   {% elif interface.mode and interface.mode.value == 'tagged' %}
    switchport mode trunk
-   switchport trunk allowed vlan {{ interface.allowed_vlans | join(',') }}
-   {% elif interface.mode == 'routed' %}
+   switchport trunk allowed vlan {{ interface.tagged_vlans | map(attribute='vid') | join(',') }}
+   {% else %}
    no switchport
-   {% if interface.ipv4_address is defined %}
-   ip address {{ interface.ipv4_address }}
-   {% endif %}
+   {% if interface.ip_addresses %}
+   {% for ip in interface.ip_addresses %}
+   ip address {{ ip.address }}
+   {% endfor %}
    {% endif %}
    {% endif %}
 !
-{% endfor %}
 {% endif %}
-
-! If config_context has interfaces (alternate structure)
-{% if config_context[0].interfaces is defined %}
-{% for interface in config_context[0].interfaces %}
-interface {{ interface.name }}
-   {% if interface.description is defined %}
-   description {{ interface.description }}
-   {% endif %}
-   {% if interface.enabled is defined and interface.enabled == false %}
-   shutdown
-   {% else %}
-   no shutdown
-   {% endif %}
-   {% if interface.mode is defined %}
-   {% if interface.mode == 'access' %}
-   switchport mode access
-   switchport access vlan {{ interface.vlan }}
-   {% elif interface.mode == 'trunk' %}
-   switchport mode trunk
-   switchport trunk allowed vlan {{ interface.allowed_vlans | join(',') }}
-   {% elif interface.mode == 'routed' %}
-   no switchport
-   {% if interface.ip_address is defined %}
-   ip address {{ interface.ip_address }}
-   {% endif %}
-   {% endif %}
-   {% endif %}
-!
 {% endfor %}
 {% endif %}
