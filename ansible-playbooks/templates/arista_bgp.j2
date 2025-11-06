@@ -46,6 +46,10 @@ router bgp {{ bgp.asn }}
    distance bgp {{ bgp.distance.external }} {{ bgp.distance.internal }} {{ bgp.distance.local }}
    {% endif %}
    !
+   ! Advertise loopback address
+   address-family ipv4
+     network {{ bgp.router_id }}/32
+   !
    ! Peer Groups
    {% if bgp.peer_groups is defined %}
    {% for pg in bgp.peer_groups %}
