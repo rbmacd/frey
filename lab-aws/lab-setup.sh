@@ -291,6 +291,9 @@ EOF
 
 systemctl restart docker
 
+# Start containerlab topology
+sudo containerlab deploy -t /home/ubuntu/containerlab-labs/example-topology.yaml &
+
 # Print completion message to system log
 echo "Lab server setup complete! See /home/ubuntu/README.txt for instructions." | tee /dev/kmsg
 

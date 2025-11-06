@@ -64,6 +64,7 @@ MANUFACTURER_TO_ANSIBLE_OS = {
 
 # Config Context Constants
 LOOPBACK_BASE = "10.255.255."
+VTEP_LOOPBACK_BASE = "10.255.254."  # Different range for VTEP
 SPINE_LOOPBACK_START = 1
 LEAF_LOOPBACK_START = 101
 BASE_ASN_SPINE = 65000
@@ -268,6 +269,12 @@ def generate_router_id(device_name, role):
     
     return f"{LOOPBACK_BASE}{octet}"
 
+def generate_vtep_ip(device_name):
+    """Generate VTEP loopback IP for leaf switches (different from router ID)"""
+    device_num = extract_device_number(device_name)
+    octet = LEAF_LOOPBACK_START + device_num - 1
+    return f"{VTEP_LOOPBACK_BASE}{octet}"
+
 def generate_asn(device_name, role):
     """Generate BGP ASN based on device role"""
     if role == 'spine':
@@ -460,8 +467,9 @@ def generate_spine_config_context(device_name, device_data, clab_data, all_devic
     
     # Build EVPN overlay neighbor list with leaf router IDs
     evpn_neighbors = []
-    leaf_neighbors = [link['remote_device'] for link in leaf_links]
-    for leaf in leaf_neighbors:
+    # Get unique leaf devices (avoid duplicates if multiple links to same leaf)
+    unique_leafs = list(set([link['remote_device'] for link in leaf_links]))
+    for leaf in unique_leafs:
         leaf_router_id = generate_router_id(leaf, 'leaf')
         leaf_asn = generate_asn(leaf, 'leaf')
         evpn_neighbors.append({
@@ -508,6 +516,7 @@ def generate_spine_config_context(device_name, device_data, clab_data, all_devic
 def generate_leaf_config_context(device_name, device_data, clab_data, all_devices):
     """Generate config context for leaf switches"""
     router_id = generate_router_id(device_name, 'leaf')
+    vtep_ip = generate_vtep_ip(device_name)
     asn = generate_asn(device_name, 'leaf')
     
     # Calculate eBGP multihop based on topology depth
@@ -538,8 +547,9 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
     
     # Build EVPN overlay neighbor list with spine router IDs
     evpn_neighbors = []
-    spine_neighbors = [link['remote_device'] for link in spine_links]
-    for spine in spine_neighbors:
+    # Get unique spine devices (avoid duplicates if multiple links to same spine)
+    unique_spines = list(set([link['remote_device'] for link in spine_links]))
+    for spine in unique_spines:
         spine_router_id = generate_router_id(spine, 'spine')
         spine_asn = generate_asn(spine, 'spine')
         evpn_neighbors.append({
@@ -562,7 +572,7 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
         "vxlan": {
             "vtep_loopback": {
                 "id": 1,
-                "ip": f"{router_id}/32"
+                "ip": f"{vtep_ip}/32"
             },
             "vtep_source_interface": "Loopback1",
             "udp_port": 4789,
@@ -577,6 +587,9 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
             },
             "maximum_paths": 4,
             "ecmp_paths": 4,
+            "networks": [
+                f"{vtep_ip}/32"
+            ],
             "peer_groups": [
                 {
                     "name": "LEAF_UNDERLAY",
