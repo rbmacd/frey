@@ -2,7 +2,7 @@
 ! Physical Interfaces
 {% if interfaces is defined %}
 {% for interface in interfaces %}
-{% if interface.type.value in ['1000base-t', '10gbase-x-sfpp'] %}
+{% if interface.type.value in ['1000base-t', '10gbase-x-sfpp'] and interface.name != 'mgmt0' %}
 interface {{ interface.name }}
    {% if interface.description %}
    description {{ interface.description }}
@@ -18,13 +18,11 @@ interface {{ interface.name }}
    {% elif interface.mode and interface.mode.value == 'tagged' %}
    switchport mode trunk
    switchport trunk allowed vlan {{ interface.tagged_vlans | map(attribute='vid') | join(',') }}
-   {% else %}
+   {% elif interface.ip_addresses %}
    no switchport
-   {% if interface.ip_addresses %}
    {% for ip in interface.ip_addresses %}
    ip address {{ ip.address }}
    {% endfor %}
-   {% endif %}
    {% endif %}
 !
 {% endif %}
