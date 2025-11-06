@@ -1,10 +1,12 @@
 ---
 plugin: netbox.netbox.nb_inventory
-#api_endpoint: "{{ lookup('env', 'NETBOX_API') }}"
-#token: "{{ lookup('env', 'NETBOX_TOKEN') }}"
+
 validate_certs: false
 config_context: true
 flatten_custom_fields: true
+
+# Fetch interfaces and their IPs (disabled by default)
+interfaces: true
 
 # Group devices by NetBox attributes
 group_by:
