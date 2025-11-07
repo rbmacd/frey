@@ -504,6 +504,7 @@ extraDeploy:
                 credentials:
                   - "Network Device Password"
                   - "GitHub PAT"
+                  - "NetBox Production"
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 extra_vars:
