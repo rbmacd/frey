@@ -777,9 +777,10 @@ def create_devices(nb, clab_data, site, skip_config_context=False):
             
             devices[node_name] = device
             
-            # Determine and set ansible_network_os
-            ansible_os = get_ansible_network_os(kind, manufacturer_name)
-            set_device_custom_fields(nb, device, ansible_os)
+            # Set ansible_network_os only for network devices (not servers/hosts)
+            if kind == 'ceos':
+                ansible_os = get_ansible_network_os(kind, manufacturer_name)
+                set_device_custom_fields(nb, device, ansible_os)
             
             # Determine device type (spine/leaf)
             device_role = determine_device_role(node_name)

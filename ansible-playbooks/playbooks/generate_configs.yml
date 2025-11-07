@@ -101,7 +101,11 @@
 
     - name: Display list of VLANs for debugging
       ansible.builtin.debug:
-        msg: "{{ vlans }}"
+        msg: >
+          {{ vlans }}
+          {% for intf in interfaces %}
+            intf.name
+          {% endfor %}
 
     - name: Generate configuration from template
       ansible.builtin.template:
