@@ -99,10 +99,10 @@
       ansible.builtin.set_fact:
         vlans: "{{ query('netbox.netbox.nb_lookup','vlans',api_endpoint=netbox_api,token=netbox_token,validate_certs=false) }}"
 
-    - name: Display list of VLANs for debugging
+    - name: Display list of interfaces for debugging
       ansible.builtin.debug:
         msg: >
-          {{ vlans }}
+          {{ interfaces }}
           {% for intf in interfaces %}
             intf.name
           {% endfor %}
