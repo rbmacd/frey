@@ -1,9 +1,9 @@
 !
 ! VLAN Configuration
 {% if vlans is defined %}
-{% for vlan in vlans %}
-vlan {{ vlan.values.vid }}
-   name {{ vlan.values.name }}
+{% for key,value in vlans.items() %}
+vlan {{ value.vid }}
+   name {{ value.name }}
 !
 {% endfor %}
 {% endif %}
