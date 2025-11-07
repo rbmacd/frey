@@ -4,7 +4,7 @@
 {% if intf.name == "Loopback1" %}
 interface Loopback1
    description VTEP Loopback
-   ip address {{ intf.ip_addresses.first().address }}
+   ip address {{ intf.ip_addresses[0].address }}
 {% endif %}
 {% endfor %}
 !
