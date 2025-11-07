@@ -5,7 +5,7 @@
 {% set loopback1 = intf %}
 {% endif %}
 {% endfor %}
-{% if loopback1 and loopback1.ip_addresses.first() %}
+{% if loopback1 is defined and loopback1.ip_addresses.first() %}
 interface Loopback1
    description VTEP Loopback
    ip address {{ loopback1.ip_addresses.first().address }}
