@@ -40,7 +40,9 @@ route-map {{ rm.name }} {{ rm.action }} {{ rm.sequence }}
 
 ! BGP Configuration
 router bgp {{ bgp.asn }}
+   {% if loopback0 is defined }}
    router-id {{ loopback0.ip_addresses.first().address[:-3] }}
+   {% endif %}
    {% if bgp.maximum_paths is defined %}
    maximum-paths {{ bgp.maximum_paths }}
    {% endif %}
