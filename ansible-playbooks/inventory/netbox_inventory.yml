@@ -8,6 +8,9 @@ flatten_custom_fields: true
 # Fetch interfaces and their IPs (disabled by default)
 interfaces: true
 
+# Fetch site and VLAN data (disabled by default)
+site_data: true
+
 # Group devices by NetBox attributes
 group_by:
   - device_roles
