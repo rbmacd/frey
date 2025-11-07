@@ -99,7 +99,7 @@
       ansible.builtin.set_fact:
         vlans: >-
           {{ 
-            query('netbox.netbox.nb_lookup',
+            lookup('netbox.netbox.nb_lookup',
               validate_certs=false,
               'vlans',
               api_endpoint=vars['netbox_api'],
