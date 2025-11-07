@@ -1,6 +1,10 @@
 !
 ! Loopback for VTEP
-{% set loopback1 = interfaces.get(name='Loopback1') %}
+{% for intf in interfaces %}
+{% if intf.name == "Loopback1" %}
+{% set loopback1 = intf %}
+{% endif %}
+{% endfor %}
 {% if loopback1 and loopback1.ip_addresses.first() %}
 interface Loopback1
    description VTEP Loopback
