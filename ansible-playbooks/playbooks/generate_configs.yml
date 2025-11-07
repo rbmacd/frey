@@ -104,7 +104,7 @@
         msg: >
           {{ interfaces }}
           {% for intf in interfaces %}
-            intf.name
+            {{ intf.name }}
           {% endfor %}
 
     - name: Generate configuration from template
