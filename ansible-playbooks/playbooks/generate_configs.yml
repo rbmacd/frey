@@ -97,15 +97,7 @@
 
     - name: Obtain a list of VLANs from NetBox and save to a variable
       ansible.builtin.set_fact:
-        vlans: >-
-          {{ 
-            query('netbox.netbox.nb_lookup',
-              validate_certs=false,
-              'vlans',
-              api_endpoint={{ netbox_api }},
-              token={{ netbox_token }}
-              )
-          }}
+        vlans: {{ query('netbox.netbox.nb_lookup',validate_certs=false,'vlans',api_endpoint={{ netbox_api }},token={{ netbox_token }}) }}
 
     - name: Display list of VLANs for debugging
       ansible.builtin.debug:
