@@ -1,15 +1,16 @@
 !
+! Loopback for VTEP
+{% set loopback1 = device.interfaces.get(name='Loopback1') %}
+{% if loopback1 and loopback1.ip_addresses.first() %}
+interface Loopback1
+   description VTEP Loopback
+   ip address {{ loopback1.ip_addresses.first().address }}
+{% endif %}
+
+!
 ! VXLAN Configuration
 {% if config_context[0].vxlan is defined %}
 {% set vxlan = config_context[0].vxlan %}
-
-! Loopback for VTEP
-{% if vxlan.vtep_loopback is defined %}
-interface Loopback{{ vxlan.vtep_loopback.id }}
-   description VTEP Loopback
-   ip address {{ vxlan.vtep_loopback.ip }}
-!
-{% endif %}
 
 ! VXLAN interface
 interface Vxlan1

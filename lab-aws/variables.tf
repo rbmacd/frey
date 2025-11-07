@@ -45,7 +45,7 @@ variable "vpn_instance_type" {
 variable "lab_instance_type" {
   description = "EC2 instance type for lab server"
   type        = string
-  default     = "r7i.xlarge"  # 32 GB RAM, 4 vCPU
+  default     = "r6i.xlarge"
   
   # Memory-optimized instances for containerlab (uses spot pricing):
   # "r7i.xlarge"    - 32 GB RAM, 4 vCPU   (good for 10-15 cEOS nodes)
