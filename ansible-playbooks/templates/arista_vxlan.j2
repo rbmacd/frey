@@ -1,6 +1,6 @@
 !
 ! Loopback for VTEP
-{% set loopback1 = device.interfaces.get(name='Loopback1') %}
+{% set loopback1 = interfaces.get(name='Loopback1') %}
 {% if loopback1 and loopback1.ip_addresses.first() %}
 interface Loopback1
    description VTEP Loopback

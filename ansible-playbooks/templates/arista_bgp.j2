@@ -1,6 +1,6 @@
 !
 ! BGP Loopback0 (Router ID)
-{% set loopback0 = device.interfaces.get(name='Loopback0') %}
+{% set loopback0 = interfaces.get(name='Loopback0') %}
 {% if loopback0  is defined %}
 interface Loopback0
    description BGP Router ID
@@ -36,7 +36,7 @@ route-map {{ rm.name }} {{ rm.action }} {{ rm.sequence }}
 
 ! BGP Configuration
 router bgp {{ bgp.asn }}
-   router-id {{ loopback0.ip_addresses.first().address }}
+   router-id {{ loopback0.ip_addresses.first().address[:-3] }}
    {% if bgp.maximum_paths is defined %}
    maximum-paths {{ bgp.maximum_paths }}
    {% endif %}
