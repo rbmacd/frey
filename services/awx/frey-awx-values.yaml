@@ -462,6 +462,7 @@ extraDeploy:
                 ask_limit_on_launch: true
                 ask_variables_on_launch: true
                 ask_credential_on_launch: true
+                limit: "device_roles_network-device"
                 state: present
             
             - name: Create example Job Template for backing up network devices
@@ -485,6 +486,7 @@ extraDeploy:
                 ask_variables_on_launch: true
                 extra_vars:
                   git_cfg_repo: "{{ git_cfg_repo }}"
+                limit: "device_roles_network-device"
                 state: present
 
             - name: Create example Job Template for generating network device configs
@@ -509,6 +511,7 @@ extraDeploy:
                 ask_variables_on_launch: true
                 extra_vars:
                   git_cfg_repo: "{{ git_cfg_repo }}"
+                limit: "device_roles_network-device"
                 state: present
             
             - name: Create example Job Template for deploying network device configs
@@ -532,6 +535,7 @@ extraDeploy:
                 ask_variables_on_launch: true
                 extra_vars:
                   git_cfg_repo: "{{ git_cfg_repo }}"
+                limit: "device_roles_network-device"
                 state: present
 
             - name: Display completion message
