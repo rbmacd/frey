@@ -30,18 +30,21 @@ logger = logging.getLogger(__name__)
 # Device type mapping for ContainerLab kinds
 DEVICE_TYPE_MAP = {
     'ceos': 'Arista cEOS',
-    'linux': 'Linux Host'
+    'linux': 'Linux Host',
+    'alpine': 'Alpine Linux'
 }
 
 MANUFACTURER_MAP = {
     'ceos': 'Arista',
-    'linux': 'Generic'
+    'linux': 'Generic',
+    'alpine': 'Alpine'
 }
 
 # Ansible network_os mapping for different device kinds/manufacturers
 ANSIBLE_NETWORK_OS_MAP = {
     'ceos': 'eos',
     'linux': 'linux',
+    'alpine': 'linux',
     'vr-sros': 'sros',
     'vr-vmx': 'junos',
     'vr-xrv9k': 'iosxr',
@@ -59,7 +62,8 @@ MANUFACTURER_TO_ANSIBLE_OS = {
     'Cisco': 'ios',
     'Juniper': 'junos',
     'Nokia': 'sros',
-    'Generic': 'linux'
+    'Generic': 'linux',
+    'Alpine': 'linux'
 }
 
 # Config Context Constants
@@ -434,8 +438,104 @@ def calculate_topology_depth(clab_data):
     
     return ebgp_multihop
 
+def get_or_create_vlan(nb, site, vlan_id, vlan_name):
+    """
+    Get or create a VLAN in NetBox.
+    
+    Args:
+        nb: NetBox API object
+        site: Site object
+        vlan_id: VLAN ID (integer)
+        vlan_name: VLAN name (string)
+    
+    Returns:
+        VLAN object
+    """
+    try:
+        # Check if VLAN exists at this site with this ID
+        vlan = nb.ipam.vlans.get(site_id=site.id, vid=vlan_id)
+        
+        if not vlan:
+            logger.info(f"Creating VLAN {vlan_id} ({vlan_name}) at site {site.name}")
+            vlan = nb.ipam.vlans.create(
+                vid=vlan_id,
+                name=vlan_name,
+                site=site.id
+            )
+        else:
+            logger.debug(f"VLAN {vlan_id} already exists at site {site.name}")
+        
+        return vlan
+    except RequestError as e:
+        logger.error(f"NetBox API error creating VLAN {vlan_id}: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error creating VLAN {vlan_id}: {e}")
+        return None
+
+def create_loopback_interface(nb, device, loopback_id, ip_address):
+    """
+    Create a loopback interface on a device and assign an IP address.
+    
+    Args:
+        nb: NetBox API object
+        device: Device object
+        loopback_id: Loopback interface number (0 for Loopback0, 1 for Loopback1)
+        ip_address: IP address with prefix (e.g., "10.255.255.1/32")
+    
+    Returns:
+        Interface object
+    """
+    try:
+        loopback_name = f"Loopback{loopback_id}"
+        
+        # Get or create the loopback interface
+        interface = nb.dcim.interfaces.get(device_id=device.id, name=loopback_name)
+        
+        if not interface:
+            logger.info(f"Creating {loopback_name} interface on {device.name}")
+            interface = nb.dcim.interfaces.create(
+                device=device.id,
+                name=loopback_name,
+                type='virtual'
+            )
+        else:
+            logger.debug(f"{loopback_name} already exists on {device.name}")
+        
+        # Assign IP address to the interface
+        assign_interface_ip(nb, interface, ip_address, f"{loopback_name} IP")
+        
+        return interface
+        
+    except RequestError as e:
+        logger.error(f"NetBox API error creating {loopback_name} on {device.name}: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error creating {loopback_name} on {device.name}: {e}")
+        return None
+
+def assign_vlans_to_device(nb, device, site):
+    """
+    Create VLANs in NetBox for leaf devices.
+    
+    Args:
+        nb: NetBox API object
+        device: Device object
+        site: Site object
+    """
+    try:
+        logger.info(f"Creating VLANs for {device.name}")
+        
+        for vlan_def in DEFAULT_VLANS:
+            get_or_create_vlan(nb, site, vlan_def['vid'], vlan_def['name'])
+        
+        logger.info(f"Successfully processed VLANs for {device.name}")
+        
+    except Exception as e:
+        logger.error(f"Error assigning VLANs to {device.name}: {e}")
+
 def generate_spine_config_context(device_name, device_data, clab_data, all_devices):
-    """Generate config context for spine switches"""
+    """Generate config context for spine switches (BGP config only, no duplicated data)"""
     router_id = generate_router_id(device_name, 'spine')
     asn = generate_asn(device_name, 'spine')
     
@@ -482,11 +582,6 @@ def generate_spine_config_context(device_name, device_data, clab_data, all_devic
     config_context = {
         "bgp": {
             "asn": asn,
-            "router_id": router_id,
-            "router_id_loopback": {
-                "id": 0,
-                "ip": f"{router_id}/32"
-            },
             "maximum_paths": 4,
             "ecmp_paths": 4,
             "peer_groups": [
@@ -514,7 +609,7 @@ def generate_spine_config_context(device_name, device_data, clab_data, all_devic
     return config_context
 
 def generate_leaf_config_context(device_name, device_data, clab_data, all_devices):
-    """Generate config context for leaf switches"""
+    """Generate config context for leaf switches (BGP/VXLAN config only, no duplicated data)"""
     router_id = generate_router_id(device_name, 'leaf')
     vtep_ip = generate_vtep_ip(device_name)
     asn = generate_asn(device_name, 'leaf')
@@ -559,7 +654,7 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
             "encapsulation": "vxlan"
         })
     
-    # Generate VLAN-to-VNI mappings
+    # Generate VLAN-to-VNI mappings (still kept in config_context for automation)
     vlan_vni_mappings = []
     for vlan in DEFAULT_VLANS:
         vlan_vni_mappings.append({
@@ -568,28 +663,15 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
         })
     
     config_context = {
-        "vlans": DEFAULT_VLANS,
         "vxlan": {
-            "vtep_loopback": {
-                "id": 1,
-                "ip": f"{vtep_ip}/32"
-            },
             "vtep_source_interface": "Loopback1",
             "udp_port": 4789,
             "vlan_vni_mappings": vlan_vni_mappings
         },
         "bgp": {
             "asn": asn,
-            "router_id": router_id,
-            "router_id_loopback": {
-                "id": 0,
-                "ip": f"{router_id}/32"
-            },
             "maximum_paths": 4,
             "ecmp_paths": 4,
-            "networks": [
-                f"{vtep_ip}/32"
-            ],
             "peer_groups": [
                 {
                     "name": "LEAF_UNDERLAY",
@@ -627,7 +709,7 @@ def apply_config_context(nb, device, config_context, device_name):
     except Exception as e:
         logger.error(f"Unexpected error applying config context to {device_name}: {e}")
 
-def create_devices(nb, clab_data, site_id, skip_config_context=False):
+def create_devices(nb, clab_data, site, skip_config_context=False):
     """Create devices from ContainerLab topology"""
     devices = {}
     nodes = clab_data['topology']['nodes']
@@ -664,9 +746,16 @@ def create_devices(nb, clab_data, site_id, skip_config_context=False):
             # Get or create device type
             device_type = get_or_create_device_type(nb, kind, manufacturer.id)
             
-            # Determine device role name
+            # Determine device role name based on kind and device name
             if kind == 'ceos':
                 device_role_name = 'Network Device'
+            elif kind in ['linux', 'alpine']:
+                # Check if it's named like a server/host
+                node_lower = node_name.lower()
+                if any(prefix in node_lower for prefix in ['server', 'host', 'client', 'alpine']):
+                    device_role_name = 'Server'
+                else:
+                    device_role_name = 'Host'
             else:
                 device_role_name = 'Host'
             
@@ -681,7 +770,7 @@ def create_devices(nb, clab_data, site_id, skip_config_context=False):
                     name=node_name,
                     device_type=device_type.id,
                     role=role.id,
-                    site=site_id
+                    site=site.id
                 )
             else:
                 logger.info(f"Device already exists: {node_name}")
@@ -692,9 +781,25 @@ def create_devices(nb, clab_data, site_id, skip_config_context=False):
             ansible_os = get_ansible_network_os(kind, manufacturer_name)
             set_device_custom_fields(nb, device, ansible_os)
             
+            # Determine device type (spine/leaf)
+            device_role = determine_device_role(node_name)
+            
+            # Create loopback interfaces and VLANs for network devices
+            if device_role in ['spine', 'leaf']:
+                # Create Loopback0 with router ID
+                router_id = generate_router_id(node_name, device_role)
+                create_loopback_interface(nb, device, 0, f"{router_id}/32")
+                
+                # Create Loopback1 with VTEP IP for leaf switches
+                if device_role == 'leaf':
+                    vtep_ip = generate_vtep_ip(node_name)
+                    create_loopback_interface(nb, device, 1, f"{vtep_ip}/32")
+                    
+                    # Create VLANs for leaf switches
+                    assign_vlans_to_device(nb, device, site)
+            
             # Apply config context for network devices (unless skipped)
             if not skip_config_context:
-                device_role = determine_device_role(node_name)
                 if device_role in ['spine', 'leaf']:
                     if device_role == 'spine':
                         config_context = generate_spine_config_context(node_name, node_data, clab_data, nodes)
@@ -847,6 +952,13 @@ def create_interfaces_and_links(nb, clab_data, devices):
                 assign_interface_ip(nb, spine_intf, spine_ip, f"P2P link {link_index}")
                 assign_interface_ip(nb, leaf_intf, leaf_ip, f"P2P link {link_index}")
             
+            # Set descriptions for leaf-to-host connections (no IP assignment)
+            elif intf1 and intf2 and 'leaf' in {device1_role, device2_role} and 'unknown' in {device1_role, device2_role}:
+                intf1.description = f"to_{device2_name}"
+                intf2.description = f"to_{device1_name}"
+                intf1.save()
+                intf2.save()
+            
             # Create cable connection
             if intf1 and intf2:
                 create_cable(nb, intf1, intf2)
@@ -993,7 +1105,7 @@ Examples:
         logger.info("=" * 50)
         logger.info("Creating devices...")
         logger.info("=" * 50)
-        devices = create_devices(nb, clab_data, site.id, skip_config_context=args.skip_config_context)
+        devices = create_devices(nb, clab_data, site, skip_config_context=args.skip_config_context)
         
         # Create interfaces and links
         logger.info("=" * 50)

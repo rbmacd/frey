@@ -22,6 +22,26 @@ topology:
       image: ceos:latest
       mgmt-ipv4: 172.20.20.5
 
+    server1-blue:
+      kind: linux
+      image: alpine:latest
+      mgmt-ipv4: 172.20.20.101
+
+    server2-blue:
+      kind: linux
+      image: alpine:latest
+      mgmt-ipv4: 172.20.20.102
+
+    server3-red:
+      kind: linux
+      image: alpine:latest
+      mgmt-ipv4: 172.20.20.103
+
+    server4-red:
+      kind: linux
+      image: alpine:latest
+      mgmt-ipv4: 172.20.20.104
+
   links:
     # Spine1 to Leafs
     - endpoints: ["spine1:eth1", "leaf1:eth1"]
@@ -31,8 +51,13 @@ topology:
     - endpoints: ["spine2:eth1", "leaf1:eth2"]
     - endpoints: ["spine2:eth2", "leaf2:eth2"]
     
-    # Leaf to Leaf (optional)
-    - endpoints: ["leaf1:eth3", "leaf2:eth3"]
+    # Blue servers to Leafs
+    - endpoints: ["leaf1:eth3", "server1-blue:eth1"]
+    - endpoints: ["leaf2:eth3", "server2-blue:eth1"]
+    
+    # Red servers to Leafs
+    - endpoints: ["leaf1:eth4", "server3-red:eth1"]
+    - endpoints: ["leaf2:eth4", "server4-red:eth1"]
 
 mgmt:
   network: custom-mgmt
