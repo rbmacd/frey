@@ -53,11 +53,23 @@ topology:
     
     # Blue servers to Leafs
     - endpoints: ["leaf1:eth3", "server1-blue:eth1"]
+      labels:
+        mode: access
+        vlan: 10
     - endpoints: ["leaf2:eth3", "server2-blue:eth1"]
+      labels:
+        mode: access
+        vlan: 10
     
     # Red servers to Leafs
     - endpoints: ["leaf1:eth4", "server3-red:eth1"]
+      labels:
+        mode: access
+        vlan: 20
     - endpoints: ["leaf2:eth4", "server4-red:eth1"]
+      labels:
+        mode: access
+        vlan: 20
 
 mgmt:
   network: custom-mgmt
