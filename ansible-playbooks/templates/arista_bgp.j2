@@ -7,9 +7,7 @@ interface Loopback0
    ip address {{ loopback0.ip_addresses.first().address }}
 {% endif %}
 {% endfor %}
-
 !
-{% endif %}
 !
 ! BGP Configuration
 {% if config_context[0].bgp is defined %}
