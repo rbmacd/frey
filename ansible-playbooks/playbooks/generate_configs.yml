@@ -88,12 +88,25 @@
       ansible.builtin.debug:
         msg: |
           NetBox config context data:
-          - VLANs: {{ config_context[0].vlans | default([]) | length }} configured
-          - Interfaces: {{ config_context[0].interfaces | default([]) | length }} configured
           - BGP: {{ 'configured' if config_context[0].bgp.asn is defined else 'not configured' }}
           - NTP: {{ config_context[0].ntp_servers | default([]) | length }} servers
           - DNS: {{ config_context[0].dns_servers | default([]) | length }} servers
           - Syslog: {{ config_context[0].syslog_servers | default([]) | length }} servers
+
+    - name: Obtain a list of VLANs from NetBox and save to a variable
+      ansible.builtin.set_fact:
+        vlans: >-
+          {{ 
+            query('netbox.netbox.nb_lookup',
+              vlans',
+              api_endpoint= {{ lookup('ansible.builtin.env', 'NETBOX_API')}},
+              token= {{ lookup('ansible.builtin.env', 'NETBOX_TOKEN')}}
+              )
+          }}
+
+    - name: Display list of VLANs for debugging
+      ansible.builtin.debug:
+        msg: "{{ vlans }}"
 
     - name: Generate configuration from template
       ansible.builtin.template:

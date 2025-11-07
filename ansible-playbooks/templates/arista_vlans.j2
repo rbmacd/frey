@@ -1,7 +1,7 @@
 !
 ! VLAN Configuration
-{% if devices.site.vlans.all() is defined %}
-{% for vlan in device.site.vlans.all() %}
+{% if vlans is defined %}
+{% for vlan in vlans %}
 vlan {{ vlan.vid }}
    name {{ vlan.name }}
 !
