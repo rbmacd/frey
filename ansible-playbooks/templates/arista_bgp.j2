@@ -2,13 +2,12 @@
 ! BGP Loopback0 (Router ID)
 {% for intf in interfaces %}
 {% if intf.name == "Loopback0" %}
-{% set loopback0 = intf %}
-{% endif %}
-{% endfor %}
-{% if loopback0 is defined %}
 interface Loopback0
    description BGP Router ID
    ip address {{ loopback0.ip_addresses.first().address }}
+{% endif %}
+{% endfor %}
+
 !
 {% endif %}
 !
@@ -40,9 +39,13 @@ route-map {{ rm.name }} {{ rm.action }} {{ rm.sequence }}
 
 ! BGP Configuration
 router bgp {{ bgp.asn }}
-   {% if loopback0 is defined %}}
+   !
+   {% for intf in interfaces %}
+   {% if intf.name == "Loopback0" %}
    router-id {{ loopback0.ip_addresses.first().address[:-3] }}
    {% endif %}
+   {% endfor %}
+   !
    {% if bgp.maximum_paths is defined %}
    maximum-paths {{ bgp.maximum_paths }}
    {% endif %}

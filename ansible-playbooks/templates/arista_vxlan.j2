@@ -2,15 +2,11 @@
 ! Loopback for VTEP
 {% for intf in interfaces %}
 {% if intf.name == "Loopback1" %}
-{% set loopback1 = intf %}
-{% endif %}
-{% endfor %}
-{% if loopback1 is defined and loopback1.ip_addresses.first() %}
 interface Loopback1
    description VTEP Loopback
-   ip address {{ loopback1.ip_addresses.first().address }}
+   ip address {{ intf.ip_addresses.first().address }}
 {% endif %}
-
+{% endfor %}
 !
 ! VXLAN Configuration
 {% if config_context[0].vxlan is defined %}
