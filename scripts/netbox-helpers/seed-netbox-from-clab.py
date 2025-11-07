@@ -955,8 +955,44 @@ def create_interfaces_and_links(nb, clab_data, devices):
             
             # Set descriptions for leaf-to-host connections (no IP assignment)
             elif intf1 and intf2 and 'leaf' in {device1_role, device2_role} and 'unknown' in {device1_role, device2_role}:
+                # Parse link labels for VLAN configuration
+                link_labels = link.get('labels', {})
+                mode = link_labels.get('mode', None)
+                vlan_id = link_labels.get('vlan', None)
+                
+                # Determine which interface is on the leaf switch
+                if device1_role == 'leaf':
+                    leaf_intf = intf1
+                    server_intf = intf2
+                    leaf_device = device1
+                else:
+                    leaf_intf = intf2
+                    server_intf = intf1
+                    leaf_device = device2
+                
+                # Set descriptions
                 intf1.description = f"to_{device2_name}"
                 intf2.description = f"to_{device1_name}"
+                
+                # Configure access mode if specified in link labels
+                if mode == 'access' and vlan_id:
+                    logger.info(f"Configuring {leaf_device.name}:{leaf_intf.name} as access port on VLAN {vlan_id}")
+                    
+                    # Get site for VLAN lookup
+                    site = nb.dcim.sites.get(id=leaf_device.site.id)
+                    
+                    # Get or create the VLAN
+                    vlan = nb.ipam.vlans.get(site_id=site.id, vid=vlan_id)
+                    if not vlan:
+                        logger.warning(f"VLAN {vlan_id} not found at site {site.name}, creating it")
+                        vlan = get_or_create_vlan(nb, site, vlan_id, f"VLAN{vlan_id}")
+                    
+                    if vlan:
+                        # Set interface mode to access
+                        leaf_intf.mode = 'access'
+                        leaf_intf.untagged_vlan = vlan.id
+                        logger.info(f"Set {leaf_device.name}:{leaf_intf.name} to access mode with untagged VLAN {vlan_id}")
+                
                 intf1.save()
                 intf2.save()
             
