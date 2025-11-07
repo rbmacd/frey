@@ -12,6 +12,8 @@
     git_user_name: "AWX Job {{ awx_job_id }}"
     git_username: "{{ lookup('env', 'GITHUB_USERNAME') }}"
     git_token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
+    netbox_api: "{{ lookup('env', 'NETBOX_API')}}"
+    netbox_token: "{{ lookup('env', 'NETBOX_TOKEN')}}"
   
   tasks:
     - name: Get timestamp from localhost
@@ -98,9 +100,9 @@
         vlans: >-
           {{ 
             query('netbox.netbox.nb_lookup',
-              vlans',
-              api_endpoint= {{ lookup('ansible.builtin.env', 'NETBOX_API')}},
-              token= {{ lookup('ansible.builtin.env', 'NETBOX_TOKEN')}}
+              'vlans',
+              api_endpoint=vars['netbox_api'],
+              token=vars['netbox_token']
               )
           }}
 
