@@ -4,7 +4,7 @@
 {% if intf.name == "Loopback0" %}
 interface Loopback0
    description BGP Router ID
-   ip address {{ loopback0.ip_addresses.first().address }}
+   ip address {{ intf.ip_addresses.first().address }}
 {% endif %}
 {% endfor %}
 !
@@ -40,7 +40,7 @@ router bgp {{ bgp.asn }}
    !
    {% for intf in interfaces %}
    {% if intf.name == "Loopback0" %}
-   router-id {{ loopback0.ip_addresses.first().address[:-3] }}
+   router-id {{ intf.ip_addresses.first().address[:-3] }}
    {% endif %}
    {% endfor %}
    !
