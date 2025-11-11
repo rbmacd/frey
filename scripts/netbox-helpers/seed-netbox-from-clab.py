@@ -748,7 +748,14 @@ def create_devices(nb, clab_data, site, skip_config_context=False):
             
             # Determine device role name based on kind and device name
             if kind == 'ceos':
-                device_role_name = 'Network Device'
+                # Determine if spine or leaf based on hostname
+                detected_role = determine_device_role(node_name)
+                if detected_role == 'spine':
+                    device_role_name = 'Spine'
+                elif detected_role == 'leaf':
+                    device_role_name = 'Leaf'
+                else:
+                    device_role_name = 'Network Device'  # Fallback for other network devices
             elif kind in ['linux', 'alpine']:
                 # Check if it's named like a server/host
                 node_lower = node_name.lower()
