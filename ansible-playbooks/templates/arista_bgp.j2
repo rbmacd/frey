@@ -45,7 +45,7 @@ router bgp {{ bgp.asn }}
    {% endfor %}
    !
    {% for intf in interfaces %}
-   {% if intf.name == "Loopback1" %}
+   {% if "Loopback" in intf.name %}
    network {{ intf.ip_addresses[0].address }}
    {% endif %}
    {% endfor %}

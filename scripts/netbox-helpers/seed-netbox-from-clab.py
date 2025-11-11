@@ -565,15 +565,15 @@ def generate_spine_config_context(device_name, device_data, clab_data, all_devic
             "description": leaf_name
         })
     
-    # Build EVPN overlay neighbor list with leaf router IDs
+    # Build EVPN overlay neighbor list with leaf VTEP IPs (Loopback1)
     evpn_neighbors = []
     # Get unique leaf devices (avoid duplicates if multiple links to same leaf)
     unique_leafs = list(set([link['remote_device'] for link in leaf_links]))
     for leaf in unique_leafs:
-        leaf_router_id = generate_router_id(leaf, 'leaf')
+        leaf_vtep_ip = generate_vtep_ip(leaf)  # Use VTEP IP (Loopback1)
         leaf_asn = generate_asn(leaf, 'leaf')
         evpn_neighbors.append({
-            "ip": leaf_router_id,
+            "ip": leaf_vtep_ip,
             "remote_as": leaf_asn,
             "peer_group": "EVPN_OVERLAY",
             "encapsulation": "vxlan"
