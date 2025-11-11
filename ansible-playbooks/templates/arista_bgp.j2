@@ -44,6 +44,12 @@ router bgp {{ bgp.asn }}
    {% endif %}
    {% endfor %}
    !
+   {% for intf in interfaces %}
+   {% if intf.name == "Loopback1" %}
+   network {{ intf.ip_addresses[0].address }}
+   {% endif %}
+   {% endfor %}
+   !
    {% if bgp.maximum_paths is defined %}
    maximum-paths {{ bgp.maximum_paths }}
    {% endif %}
