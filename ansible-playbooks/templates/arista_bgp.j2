@@ -128,6 +128,8 @@ router bgp {{ bgp.asn }}
    {% endif %}
    !
    ! MAC-VRF EVPN Configuration for Leaf Switches
+   {% if config_context[0].vxlan is defined %}
+   {% set vxlan = config_context[0].vxlan %}
    {% if "device_roles_leaf" in group_names and vxlan.vlan_vni_mappings is defined %}
    {% for macVrf in vxlan.vlan_vni_mappings %}
    vlan {{ macVrf.vlan }}
@@ -136,6 +138,7 @@ router bgp {{ bgp.asn }}
      redistribute learned
    !
    {% endfor %}
+   {% endif %}
    {% endif %}
    !
    {% if bgp.redistribute is defined %}
