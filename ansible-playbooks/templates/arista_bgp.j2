@@ -84,6 +84,9 @@ router bgp {{ bgp.asn }}
    {% endif %}
    {% if "OVERLAY" in pg.name %}
    neighbor {{ pg.name }} next-hop-unchanged
+   address-family evpn
+     neighbor {{ pg.name }} activate
+     neighbor {{ pg.name }} encapsulation vxlan
    {% endif %}
    {% if "UNDERLAY" in pg.name %}
    address-family ipv4
@@ -120,19 +123,6 @@ router bgp {{ bgp.asn }}
    neighbor {{ neighbor.ip }} remote-as {{ neighbor.remote_as }}
    {% endif %}
    {% endfor %}
-
-   address-family evpn
-      {% if bgp.evpn.neighbors is defined %}
-      {% for neighbor in bgp.evpn.neighbors %}
-      neighbor {{ neighbor.ip }} activate
-      {% if neighbor.encapsulation is defined %}
-      neighbor {{ neighbor.ip }} encapsulation {{ neighbor.encapsulation }}
-      {% endif %}
-      {% endfor %}
-      {% endif %}
-      {% if bgp.evpn.route_reflector_client is defined and bgp.evpn.route_reflector_client %}
-      neighbor {{ bgp.evpn.route_reflector_peer_group }} route-reflector-client
-      {% endif %}
    {% endif %}
    !
    {% endif %}
