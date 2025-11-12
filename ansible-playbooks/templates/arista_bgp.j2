@@ -136,7 +136,7 @@ router bgp {{ bgp.asn }}
    {% endif %}
    !
    ! MAC-VRF EVPN Configuration for Leaf Switches
-   {% if device.device_role.slug == "leaf" and if vxlan.vlan_vni_mappings is defined %}
+   {% if "device_roles_leaf" in group_names and if vxlan.vlan_vni_mappings is defined %}
    {% for macVrf in vxlan.vlan_vni_mappings %}
    vlan {{ macVrf.vlan }}
      rd {{ bgp.asn }}:{{ macVrf.vni }}

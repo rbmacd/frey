@@ -1,6 +1,6 @@
 !
 ! VLAN Configuration
-{% if vlans is defined and device.device_role.slug == "leaf"%}
+{% if vlans is defined and "device_roles_leaf" in group_names %}
 {% for vlan in vlans %}
 vlan {{ vlan.value.vid }}
    name {{ vlan.value.name }}
