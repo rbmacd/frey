@@ -38,15 +38,18 @@ route-map {{ rm.name }} {{ rm.action }} {{ rm.sequence }}
 ! BGP Configuration
 router bgp {{ bgp.asn }}
    !
+   no bgp default ipv4-unicast
+   !
    {% for intf in interfaces %}
    {% if intf.name == "Loopback0" %}
    router-id {{ intf.ip_addresses[0].address[:-3] }}
    {% endif %}
    {% endfor %}
    !
+   address-family ipv4
    {% for intf in interfaces %}
    {% if "Loopback" in intf.name %}
-   network {{ intf.ip_addresses[0].address }}
+     network {{ intf.ip_addresses[0].address }}
    {% endif %}
    {% endfor %}
    !
@@ -79,6 +82,13 @@ router bgp {{ bgp.asn }}
    {% if pg.next_hop_self is defined and pg.next_hop_self %}
    neighbor {{ pg.name }} next-hop-self
    {% endif %}
+   {% if "OVERLAY" in pg.name %}
+   neighbor {{ pg.name }} next-hop-unchanged
+   {% endif %}
+   {% if "UNDERLAY" in pg.name %}
+   address-family ipv4
+     neighbor {{ pg.name }} activate
+   {% endif %}
    !
    {% endfor %}
    {% endif %}
@@ -87,6 +97,7 @@ router bgp {{ bgp.asn }}
    ! Note: For underlay neighbors to work, add "ip" field to each neighbor in config_context
    ! Example: {"ip": "10.0.0.0", "peer_group": "LEAF_UNDERLAY", "remote_as": 65000}
    {% if bgp.underlay_neighbors is defined %}
+   router bgp {{ bgp.asn }}
    {% for neighbor in bgp.underlay_neighbors %}
    {% if neighbor.ip is defined %}
    neighbor {{ neighbor.ip }} peer group {{ neighbor.peer_group }}
@@ -98,6 +109,43 @@ router bgp {{ bgp.asn }}
    {% endfor %}
    {% endif %}
    !
+   ! EVPN Configuration
+   {% if bgp.evpn is defined %}
+   !
+   {% if bgp.evpn.neighbors is defined %}
+   router bgp {{ bgp.asn }}
+   {% for neighbor in bgp.evpn.neighbors %}
+   {% if neighbor.ip is defined %}
+   neighbor {{ neighbor.ip }} peer group {{ neighbor.peer_group }}
+   neighbor {{ neighbor.ip }} remote-as {{ neighbor.remote_as }}
+   {% endif %}
+   {% endfor %}
+
+   address-family evpn
+      {% if bgp.evpn.neighbors is defined %}
+      {% for neighbor in bgp.evpn.neighbors %}
+      neighbor {{ neighbor.ip }} activate
+      {% if neighbor.encapsulation is defined %}
+      neighbor {{ neighbor.ip }} encapsulation {{ neighbor.encapsulation }}
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% if bgp.evpn.route_reflector_client is defined and bgp.evpn.route_reflector_client %}
+      neighbor {{ bgp.evpn.route_reflector_peer_group }} route-reflector-client
+      {% endif %}
+   {% endif %}
+   !
+   ! MAC-VRF EVPN Configuration for Leaf Switches
+   {% if device.device_role.slug == "leaf" and if vxlan.vlan_vni_mappings is defined %}
+   {% for macVrf in vxlan.vlan_vni_mappings %}
+   vlan {{ macVrf.vlan }}
+     rd {{ bgp.asn }}:{{ macVrf.vni }}
+     route-target both {{ macVrf.vlan }}:{{ macVrf.vni }}
+     redistribute learned
+   !
+   {% endfor %}
+   {% endif %}
+   !
    {% if bgp.redistribute is defined %}
    {% for redist in bgp.redistribute %}
    redistribute {{ redist.protocol }}{% if redist.route_map is defined %} route-map {{ redist.route_map }}{% endif %}
@@ -106,8 +154,9 @@ router bgp {{ bgp.asn }}
    {% endif %}
    !
    {% if bgp.networks is defined %}
+   address-family ipv4
    {% for network in bgp.networks %}
-   network {{ network }}
+     network {{ network }}
    {% endfor %}
    !
    {% endif %}
@@ -137,21 +186,5 @@ router bgp {{ bgp.asn }}
    {% endfor %}
    {% endif %}
    !
-   {% if bgp.evpn is defined %}
-   !
-   ! EVPN Configuration
-   address-family evpn
-      {% if bgp.evpn.neighbors is defined %}
-      {% for neighbor in bgp.evpn.neighbors %}
-      neighbor {{ neighbor.ip }} activate
-      {% if neighbor.encapsulation is defined %}
-      neighbor {{ neighbor.ip }} encapsulation {{ neighbor.encapsulation }}
-      {% endif %}
-      {% endfor %}
-      {% endif %}
-      {% if bgp.evpn.route_reflector_client is defined and bgp.evpn.route_reflector_client %}
-      neighbor {{ bgp.evpn.route_reflector_peer_group }} route-reflector-client
-      {% endif %}
-   {% endif %}
 !
 {% endif %}
