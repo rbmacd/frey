@@ -679,7 +679,7 @@ def generate_leaf_config_context(device_name, device_data, clab_data, all_device
                 },
                 {
                     "name": "EVPN_OVERLAY",
-                    "update_source": "Loopback0",
+                    "update_source": "Loopback1",
                     "ebgp_multihop": ebgp_multihop,
                     "send_community": "extended"
                 }
