@@ -22,6 +22,26 @@ topology:
       image: ceos:latest
       mgmt-ipv4: 172.20.20.5
 
+    leaf3:
+      kind: ceos
+      image: ceos:latest
+      mgmt-ipv4: 172.20.20.6
+
+    leaf4:
+      kind: ceos
+      image: ceos:latest
+      mgmt-ipv4: 172.20.20.7
+
+    leaf5:
+      kind: ceos
+      image: ceos:latest
+      mgmt-ipv4: 172.20.20.8
+
+    leaf6:
+      kind: ceos
+      image: ceos:latest
+      mgmt-ipv4: 172.20.20.9
+
     server1-blue:
       kind: linux
       image: alpine:latest
@@ -50,34 +70,66 @@ topology:
       exec: 
         - ip addr add 192.168.20.4/24 dev eth1
 
+    server5-white:
+      kind: linux
+      image: alpine:latest
+      mgmt-ipv4: 172.20.20.105
+      exec: 
+        - ip addr add 192.168.30.5/24 dev eth1
+
+    server6-white:
+      kind: linux
+      image: alpine:latest
+      mgmt-ipv4: 172.20.20.106
+      exec: 
+        - ip addr add 192.168.30.6/24 dev eth1
+
   links:
     # Spine1 to Leafs
     - endpoints: ["spine1:eth1", "leaf1:eth1"]
     - endpoints: ["spine1:eth2", "leaf2:eth1"]
+    - endpoints: ["spine1:eth3", "leaf3:eth1"]
+    - endpoints: ["spine1:eth4", "leaf4:eth1"]
+    - endpoints: ["spine1:eth5", "leaf5:eth1"]
+    - endpoints: ["spine1:eth6", "leaf6:eth1"]
     
     # Spine2 to Leafs
     - endpoints: ["spine2:eth1", "leaf1:eth2"]
     - endpoints: ["spine2:eth2", "leaf2:eth2"]
+    - endpoints: ["spine2:eth3", "leaf3:eth2"]
+    - endpoints: ["spine2:eth4", "leaf4:eth2"]
+    - endpoints: ["spine2:eth5", "leaf5:eth2"]
+    - endpoints: ["spine2:eth6", "leaf6:eth2"]
     
     # Blue servers to Leafs
-    - endpoints: ["leaf1:eth3", "server1-blue:eth1"]
+    - endpoints: ["leaf1:eth48", "server1-blue:eth1"]
       labels:
         mode: access
         vlan: 10
-    - endpoints: ["leaf2:eth3", "server2-blue:eth1"]
+    - endpoints: ["leaf2:eth48", "server2-blue:eth1"]
       labels:
         mode: access
         vlan: 10
     
     # Red servers to Leafs
-    - endpoints: ["leaf1:eth4", "server3-red:eth1"]
+    - endpoints: ["leaf3:eth48", "server3-red:eth1"]
       labels:
         mode: access
         vlan: 20
-    - endpoints: ["leaf2:eth4", "server4-red:eth1"]
+    - endpoints: ["leaf4:eth48", "server4-red:eth1"]
       labels:
         mode: access
         vlan: 20
+
+    # White servers to Leafs
+    - endpoints: ["leaf5:eth48", "server5-white:eth1"]
+      labels:
+        mode: access
+        vlan: 30
+    - endpoints: ["leaf6:eth48", "server6-white:eth1"]
+      labels:
+        mode: access
+        vlan: 30
 
 mgmt:
   network: custom-mgmt
