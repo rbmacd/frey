@@ -819,6 +819,11 @@ def create_devices(nb, clab_data, site, skip_config_context=False):
             # Create management IP if specified
             if mgmt_ip:
                 create_management_ip(nb, device, mgmt_ip, mgmt_prefix_len)
+            
+            # Parse exec commands for IP assignments (linux/alpine containers)
+            exec_commands = node_data.get('exec', [])
+            if exec_commands and kind in ['linux', 'alpine']:
+                parse_exec_ip_assignments(nb, device, exec_commands)
                 
         except Exception as e:
             logger.error(f"Error processing device {node_name}: {e}")
@@ -826,6 +831,34 @@ def create_devices(nb, clab_data, site, skip_config_context=False):
     
     logger.info(f"Successfully processed {len(devices)} devices")
     return devices
+
+def parse_exec_ip_assignments(nb, device, exec_commands):
+    """
+    Parse exec commands from containerlab to find IP address assignments.
+    Extracts IPs from commands like: ip addr add 192.168.10.1/24 dev eth1
+    """
+    if not exec_commands:
+        return
+    
+    try:
+        for cmd in exec_commands:
+            # Match: ip addr add <IP>/<prefix> dev <interface>
+            match = re.search(r'ip\s+addr\s+add\s+(\d+\.\d+\.\d+\.\d+/\d+)\s+dev\s+(\S+)', cmd)
+            if match:
+                ip_with_prefix = match.group(1)
+                interface_name = match.group(2)
+                
+                logger.info(f"Found IP assignment in exec: {ip_with_prefix} on {interface_name} for {device.name}")
+                
+                # Get or create the interface
+                interface = get_or_create_interface(nb, device, interface_name)
+                if interface:
+                    # Assign the IP to the interface
+                    assign_interface_ip(nb, interface, ip_with_prefix, f"Container data IP from exec")
+                else:
+                    logger.warning(f"Could not create interface {interface_name} on {device.name}")
+    except Exception as e:
+        logger.error(f"Error parsing exec commands for {device.name}: {e}")
 
 def create_management_ip(nb, device, mgmt_ip, prefix_len):
     """Create management IP address for a device"""
