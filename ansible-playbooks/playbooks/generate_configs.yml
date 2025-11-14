@@ -1,12 +1,12 @@
 ---
 - name: Generate Configurations from NetBox Data
   hosts: all
-  gather_facts: no
+  gather_facts: false
   connection: network_cli
-  
+
   vars:
     git_work_dir: "/tmp/ansible-git-work"
-    git_repo_url: "{{ git_cfg_repo }}" #Inserted in Job Template definition
+    git_repo_url: "{{ git_cfg_repo }}" # Inserted in Job Template definition
     git_branch: main
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
@@ -14,9 +14,9 @@
     git_token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
     netbox_api: "{{ lookup('env', 'NETBOX_API')}}"
     netbox_token: "{{ lookup('env', 'NETBOX_TOKEN')}}"
-  
+
   tasks:
-    - name: Get timestamp from localhost
+    - name: Get timestamp from localhost # noqa: run-once
       ansible.builtin.setup:
         gather_subset:
           - date_time
@@ -24,12 +24,12 @@
       run_once: true
       register: localhost_facts
 
-    - name: Set timestamp fact
+    - name: Set timestamp fact # noqa: run-once
       ansible.builtin.set_fact:
         current_timestamp: "{{ localhost_facts.ansible_facts.ansible_date_time.iso8601 }}"
       run_once: true
 
-    - name: Configure Git identity
+    - name: Configure Git identity # noqa: run-once command-instead-of-module
       ansible.builtin.shell: |
         git config --global user.email "{{ git_user_email }}"
         git config --global user.name "{{ git_user_name }}"
@@ -37,7 +37,7 @@
       run_once: true
       changed_when: false
 
-    - name: Clone repository to working directory
+    - name: Clone repository to working directory # noqa: run-once command-instead-of-module
       ansible.builtin.shell: |
         rm -rf {{ git_work_dir }}
         git clone --depth 1 --branch {{ git_branch }} {{ git_repo_url }} {{ git_work_dir }}
@@ -45,7 +45,7 @@
       run_once: true
       changed_when: false
 
-    - name: Create generated configs directory in git working directory
+    - name: Create generated configs directory in git working directory # noqa: run-once risky-file-permissions
       ansible.builtin.file:
         path: "{{ git_work_dir }}/configs/generated"
         state: directory
@@ -97,9 +97,9 @@
 
     - name: Obtain a list of VLANs from NetBox and save to a variable
       ansible.builtin.set_fact:
-        vlans: "{{ query('netbox.netbox.nb_lookup','vlans',api_endpoint=netbox_api,token=netbox_token,validate_certs=false) }}"
+        vlans: "{{ query('netbox.netbox.nb_lookup', 'vlans', api_endpoint=netbox_api, token=netbox_token, validate_certs=false) }}"
 
-    - name: Generate configuration from template
+    - name: Generate configuration from template # noqa: no-relative-paths risky-file-permissions
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/arista_full_config.j2"
         dest: "{{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
@@ -109,7 +109,7 @@
       ansible.builtin.debug:
         msg: "Generated: {{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
 
-    - name: Commit and push generated configs to Git
+    - name: Commit and push generated configs to Git # noqa: run-once
       ansible.builtin.shell: |
         cd {{ git_work_dir }}
         git add configs/generated/
@@ -118,7 +118,7 @@
           exit 0
         fi
         git commit -m "Generated configs from NetBox - {{ current_timestamp }}"
-        git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[8:] }} # Strip https:// from git_repo_url 
+        git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[8:] }} # Strip https:// from git_repo_url
         git push origin {{ git_branch }}
       delegate_to: localhost
       run_once: true
@@ -127,13 +127,13 @@
       no_log: true
       timeout: 60
 
-    - name: Display Git results
+    - name: Display Git results # noqa: run-once
       ansible.builtin.debug:
         msg: "Configs committed and pushed to Git"
       run_once: true
-      when: git_result.changed
+      when: git_result.changed # noqa: no-handler
 
-    - name: Cleanup working directory
+    - name: Cleanup working directory # noqa: run-once
       ansible.builtin.file:
         path: "{{ git_work_dir }}"
         state: absent

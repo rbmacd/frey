@@ -1,41 +1,40 @@
 ---
 - name: Gather Facts from Network Devices
   hosts: all
-  gather_facts: no
-  
+  gather_facts: false
+
+## TESTING PIPELINE ###
+
   tasks:
     - name: Display target host information
-      debug:
+      ansible.builtin.debug:
         msg: |
           Hostname: {{ inventory_hostname }}
           IP: {{ ansible_host | default('not set') }}
           Role: {{ device_role | default('not set') }}
           Site: {{ site_name | default('not set') }}
           Platform: {{ platform_name | default('not set') }}
-    
+
     - name: Gather device facts (network devices)
       ansible.netcommon.cli_command:
         command: show version
       register: device_version
       when: platform_name is defined and platform_name in ['ios', 'iosxe', 'nxos', 'eos', 'junos']
-      ignore_errors: yes
-    
+      ignore_errors: true
+
     - name: Gather facts (Linux/Unix hosts)
       ansible.builtin.setup:
       when: ansible_network_os is not defined
-      ignore_errors: yes
-    
+
     - name: Display gathered information
-      debug:
+      ansible.builtin.debug:
         var: device_version.stdout_lines
       when: device_version is defined and device_version.stdout_lines is defined
-    
+
     - name: Display system facts (Linux/Unix)
-      debug:
+      ansible.builtin.debug:
         msg: |
           OS: {{ ansible_distribution | default('unknown') }} {{ ansible_distribution_version | default('') }}
           Kernel: {{ ansible_kernel | default('unknown') }}
           Architecture: {{ ansible_architecture | default('unknown') }}
       when: ansible_distribution is defined
-
-## TESTING PIPELINE 2 ##      

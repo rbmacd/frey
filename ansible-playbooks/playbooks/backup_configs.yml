@@ -1,20 +1,20 @@
 ---
 - name: Backup Arista EOS Configurations
   hosts: all
-  gather_facts: no
+  gather_facts: false
   connection: network_cli
-  
+
   vars:
     git_work_dir: "/tmp/ansible-git-work"
     git_user_email: "awx-{{ awx_job_id }}@frey.example"
     git_user_name: "AWX Job {{ awx_job_id }}"
-    git_repo_url: "{{ git_cfg_repo }}" #Inserted in Job Template
+    git_repo_url: "{{ git_cfg_repo }}" # Inserted in Job Template
     git_branch: main
     git_username: "{{ lookup('env', 'GITHUB_USERNAME') }}"
     git_token: "{{ lookup('env', 'GITHUB_TOKEN')}}"
-      
+
   tasks:
-    - name: Get timestamp from localhost
+    - name: Get timestamp from localhost # noqa: run-once
       ansible.builtin.setup:
         gather_subset:
           - date_time
@@ -22,12 +22,12 @@
       run_once: true
       register: localhost_facts
 
-    - name: Set timestamp fact
+    - name: Set timestamp fact # noqa: run-once
       ansible.builtin.set_fact:
-        current_timestamp: "{{ localhost_facts.ansible_facts.ansible_date_time.iso8601 | replace(':','-')}}"
+        current_timestamp: "{{ localhost_facts.ansible_facts.ansible_date_time.iso8601 | replace(':', '-') }}"
       run_once: true
 
-    - name: Configure Git identity
+    - name: Configure Git identity # noqa: command-instead-of-module run-once
       ansible.builtin.shell: |
         git config --global user.email "{{ git_user_email }}"
         git config --global user.name "{{ git_user_name }}"
@@ -35,7 +35,7 @@
       run_once: true
       changed_when: false
 
-    - name: Clone repository to working directory
+    - name: Clone repository to working directory # noqa: run-once
       ansible.builtin.shell: |
         rm -rf {{ git_work_dir }}
         git clone --depth 1 --branch {{ git_branch }} {{ git_repo_url }} {{ git_work_dir }}
@@ -43,7 +43,7 @@
       run_once: true
       changed_when: false
 
-    - name: Create backup configs directory in git working directory
+    - name: Create backup configs directory in git working directory # noqa: risky-file-permissions run-once
       ansible.builtin.file:
         path: "{{ git_work_dir }}/configs/backup"
         state: directory
@@ -57,7 +57,7 @@
           - show running-config
       register: config_output
 
-    - name: Save configuration to file
+    - name: Save configuration to file # noqa: risky-file-permissions
       ansible.builtin.copy:
         content: "{{ config_output.stdout[1] }}"
         dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
@@ -68,7 +68,7 @@
         src: "{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
         dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_latest.cfg"
         state: link
-        force: yes
+        force: true
       delegate_to: localhost
       failed_when: false
 
@@ -76,7 +76,7 @@
       ansible.builtin.debug:
         msg: "Backed up: {{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
 
-    - name: Commit and push backup configs to Git
+    - name: Commit and push backup configs to Git # noqa: run-once
       ansible.builtin.shell: |
         cd {{ git_work_dir }}
         git add configs/backup/
@@ -85,7 +85,7 @@
           exit 0
         fi
         git commit -m "Backup configs - {{ current_timestamp }}"
-        git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[8:] }} # Strip https:// from git_repo_url 
+        git remote set-url origin https://{{ git_username }}:{{ git_token }}@{{ git_repo_url[8:] }} # Strip https:// from git_repo_url
         git push origin {{ git_branch }}
       delegate_to: localhost
       run_once: true

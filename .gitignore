@@ -16,3 +16,4 @@ scripts/netbox-helpers/*
 !scripts/netbox-helpers/bootstrap.sh
 !scripts/netbox-helpers/netbox_purge.py
 clab_netbox_sync.log
+tmp/*
