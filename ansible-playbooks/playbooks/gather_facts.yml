@@ -37,3 +37,5 @@
           Kernel: {{ ansible_kernel | default('unknown') }}
           Architecture: {{ ansible_architecture | default('unknown') }}
       when: ansible_distribution is defined
+
+## TESTING PIPELINE ##      
