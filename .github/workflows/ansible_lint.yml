@@ -30,6 +30,9 @@ jobs:
       
       - name: Install linting tools
         run: pip install ansible-lint yamllint
+
+      - name: Install ansible collections for netdevops
+        run: ansible-galaxy collection install netbox.netbox:3.19.0 arista.eos:6.2.2 cisco.ios:5.3.0 cisco.iosxr:6.1.1 cisco.nxos:5.3.0 junipernetworks.junos:5.3.1 arista.avd ansible.utils
       
       - name: Run ansible-lint
         run: ansible-lint -x ignore-errors ansible-playbooks/playbooks/
@@ -42,5 +45,3 @@ jobs:
             pip install j2cli
             find ansible-playbooks/templates/ -name "*.j2" -exec j2 {} \;
 
-      - name: Install ansible collections for netdevops
-        run: ansible-galaxy collection install netbox.netbox:3.19.0 arista.eos:6.2.2 cisco.ios:5.3.0 cisco.iosxr:6.1.1 cisco.nxos:5.3.0 junipernetworks.junos:5.3.1 arista.avd ansible.utils
