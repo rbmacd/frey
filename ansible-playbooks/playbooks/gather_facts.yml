@@ -38,4 +38,4 @@
           Architecture: {{ ansible_architecture | default('unknown') }}
       when: ansible_distribution is defined
 
-## TESTING PIPELINE ##      
+## TESTING PIPELINE 2 ##      
