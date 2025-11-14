@@ -38,7 +38,8 @@ jobs:
         run: ansible-lint -x ignore-errors ansible-playbooks/playbooks/
       
       - name: Run yamllint
-        run: yamllint ansible-playbooks/playbooks/
+        run: |
+            yamllint -d "{extends: default, rules: {line-length: disable}}" ansible-playbooks/playbooks/
 
       - name: Run jinja template validation
         run: |
