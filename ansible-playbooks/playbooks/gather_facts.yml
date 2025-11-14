@@ -3,7 +3,7 @@
   hosts: all
   gather_facts: false
 
-## TESTING PIPELINE Episode III - Return of the Linter ###
+## TESTING PIPELINE Episode IV - A New Linter ###
 
   tasks:
     - name: Display target host information

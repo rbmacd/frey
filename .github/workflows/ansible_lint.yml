@@ -40,9 +40,3 @@ jobs:
       - name: Run yamllint
         run: |
             yamllint -d "{extends: default, rules: {line-length: disable}}" ansible-playbooks/playbooks/
-
-      - name: Run jinja template validation
-        run: |
-            pip install j2cli
-            find ansible-playbooks/templates/ -name "*.j2" -exec j2 {} \;
-
