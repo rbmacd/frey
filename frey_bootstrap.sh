@@ -151,6 +151,39 @@ if [ -z "$BRANCH_NAME" ]; then
     echo "Using default branch: $BRANCH_NAME"
 fi
 
+# Begin GitHub Actions Runner Controller config prompts
+echo ""
+echo "=============================="
+echo " GitHub Actions Configuration "
+echo "=============================="
+echo ""
+
+# Prompt user for GitHub repo URL for Frey templates to be used by ARC
+read -p "Enter GitHub repo URL for Frey infra and templates [$REPO_URL]: " ARC_GIT_INFRA_URL
+
+if [ -z "$ARC_GIT_INFRA_URL" ]; then
+    ARC_GIT_INFRA_URL="$REPO_URL"
+    echo "Using same Git repo URL as used in AWX: $REPO_URL"
+fi
+
+# Prompt user for GitHub repo URL for generated configs to be used by ARC
+read -p "Enter GitHub repo URL for Frey generated configs [$GIT_CFG_REPO]: " ARC_GIT_CONFIG_URL
+
+if [ -z "$ARC_GIT_CONFIG_URL" ]; then
+    ARC_GIT_CONFIG_URL="$GIT_CFG_REPO"
+    echo "Using same Git config repo URL as used in AWX: $GIT_CFG_REPO"
+fi
+
+# Prompt for GitHub PAT
+read -s -p "GitHub runner credential config - Enter GitHub Personal Access Token to be used by GitHub runners if different than AWX [use same AWX PAT]: " ARC_GIT_TOKEN
+echo
+
+# Use default if no input provided
+if [ -z "$ARC_GIT_TOKEN" ]; then
+    ARC_GIT_TOKEN="$GIT_TOKEN"
+    echo "Using same GitHub PAT"
+fi
+
 ### K3S ###
 
 echo ""
@@ -270,3 +303,27 @@ echo ""
 # Add repo and install AWX operator using Helm chart
 helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm
 envsubst '${AWX_URL}' < services/awx/frey-awx-values.yaml | helm install --namespace awx-operator --create-namespace awx-operator awx-operator/awx-operator --timeout $AWX_HELM_TIMEOUT -f -
+
+
+### GITHUB ACTIONS ###
+
+echo ""
+echo "=================================="
+echo "Installing GitHub ARC Helm Charts"
+echo "=================================="
+echo ""
+
+# Install GitHub Actions Runner Controller
+#envsubst '${ARC_GIT_CFG_REPO} ${ARC_GIT_TOKEN}' < services/github-actions-runner/frey-arc-controller-values.yaml | helm install --namespace arc-systems --create-namespace arc oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller -f -
+helm install --namespace arc-systems --create-namespace arc oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+
+# Install GitHub Actions Runner Scale Set
+#   Two runner scaleset installations, one for Frey infra and templates, one for Frey generated configs
+
+ARC_GIT_URL=$ARC_GIT_INFRA_URL
+ARC_RUNNER_SCALESET_NAME="frey-infra-and-templates"
+envsubst '${ARC_GIT_URL} ${ARC_GIT_TOKEN} ${ARC_RUNNER_SCALESET_NAME}' < services/github-actions-runner/frey-arc-runner-values.yaml | helm install --namespace arc-systems arc-runner-set-templates oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set -f -
+
+ARC_GIT_URL=$ARC_GIT_CONFIG_URL
+ARC_RUNNER_SCALESET_NAME="frey-configs"
+envsubst '${ARC_GIT_URL} ${ARC_GIT_TOKEN} ${ARC_RUNNER_SCALESET_NAME}' < services/github-actions-runner/frey-arc-runner-values.yaml | helm install --namespace arc-systems arc-runner-set-configs oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set -f -

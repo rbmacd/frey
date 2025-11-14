@@ -1,0 +1,45 @@
+#
+# Frey Lint - Perform linting for ansible, yaml, and jinja on playbooks and roles
+#
+
+name: Ansible Lint
+
+on:
+  push:
+    branches: [main, candidate]
+    paths:
+      - 'ansible-playbooks/playbooks/**'
+      - 'ansible-playbooks/roles/**'
+      - 'ansible-playbooks/templates/**'
+  pull_request:
+    paths:
+      - 'ansible-playbooks/playbooks/**'
+      - 'ansible-playbooks/roles/**'
+      - 'ansible-playbooks/templates/**'
+
+jobs:
+  lint:
+    runs-on: frey-infra-and-templates
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install linting tools
+        run: pip install ansible-lint yamllint
+      
+      - name: Run ansible-lint
+        run: ansible-lint ansible-playbooks/playbooks/ ansible-playbooks/roles/
+      
+      - name: Run yamllint
+        run: yamllint ansible-playbooks/playbooks/ ansible-playbooks/roles/
+
+      - name: Run jinja template validation
+        run: |
+            pip install j2cli
+            find ansible-playbooks/templates/ -name "*.j2" -exec j2 {} \;
