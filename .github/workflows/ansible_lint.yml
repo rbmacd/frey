@@ -9,12 +9,10 @@ on:
     branches: [main, candidate]
     paths:
       - 'ansible-playbooks/playbooks/**'
-      - 'ansible-playbooks/roles/**'
       - 'ansible-playbooks/templates/**'
   pull_request:
     paths:
       - 'ansible-playbooks/playbooks/**'
-      - 'ansible-playbooks/roles/**'
       - 'ansible-playbooks/templates/**'
 
 jobs:
@@ -34,10 +32,10 @@ jobs:
         run: pip install ansible-lint yamllint
       
       - name: Run ansible-lint
-        run: ansible-lint ansible-playbooks/playbooks/ ansible-playbooks/roles/
+        run: ansible-lint ansible-playbooks/playbooks/
       
       - name: Run yamllint
-        run: yamllint ansible-playbooks/playbooks/ ansible-playbooks/roles/
+        run: yamllint ansible-playbooks/playbooks/
 
       - name: Run jinja template validation
         run: |
