@@ -1,6 +1,7 @@
 .deployment_state.json
 .deployment_state.json.backup
 .env
+.vscode
 services/netlab/netlab-venv/*
 !services/netlab/netlab-venv/test-topology/
 services/netlab/netlab-venv/test-topology/*
