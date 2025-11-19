@@ -1,8 +1,0 @@
----
-provider: clab
-defaults.device: eos
-defaults.devices.eos.clab.image: "ceos:4.34.2.1F"
-module: [ ospf ]
-
-nodes: [ r1, r2 ]
-links: [ r1, r2, r1-r2 ]
