@@ -45,7 +45,7 @@
 
     - name: Create backup configs directory in git working directory # noqa: risky-file-permissions run-once
       ansible.builtin.file:
-        path: "{{ git_work_dir }}/configs/backup"
+        path: "{{ git_work_dir }}/backup-configs"
         state: directory
       delegate_to: localhost
       run_once: true
@@ -60,13 +60,13 @@
     - name: Save configuration to file # noqa: risky-file-permissions
       ansible.builtin.copy:
         content: "{{ config_output.stdout[1] }}"
-        dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
+        dest: "{{ git_work_dir }}/backup-configs/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
       delegate_to: localhost
 
     - name: Create/update latest config symlink
       ansible.builtin.file:
         src: "{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
-        dest: "{{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_latest.cfg"
+        dest: "{{ git_work_dir }}/backup-configs/{{ inventory_hostname }}_latest.cfg"
         state: link
         force: true
       delegate_to: localhost
@@ -74,12 +74,12 @@
 
     - name: Display backup location
       ansible.builtin.debug:
-        msg: "Backed up: {{ git_work_dir }}/configs/backup/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
+        msg: "Backed up: {{ git_work_dir }}/backup-configs/{{ inventory_hostname }}_{{ current_timestamp }}.cfg"
 
     - name: Commit and push backup configs to Git # noqa: run-once
       ansible.builtin.shell: |
         cd {{ git_work_dir }}
-        git add configs/backup/
+        git add backup-configs/
         if git diff --staged --quiet; then
           echo "no_changes"
           exit 0

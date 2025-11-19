@@ -18,3 +18,6 @@ scripts/netbox-helpers/*
 !scripts/netbox-helpers/netbox_purge.py
 clab_netbox_sync.log
 tmp/*
+services/pybatfish/*
+!services/pybatfish/requirements.txt
+!services/pybatfish/pybatfish_start.sh

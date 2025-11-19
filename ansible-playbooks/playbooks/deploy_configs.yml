@@ -31,7 +31,7 @@
 
     - name: Check if generated config exists
       ansible.builtin.stat:
-        path: "{{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
+        path: "{{ git_work_dir }}/configs/{{ inventory_hostname }}.cfg"
       delegate_to: localhost
       register: config_file
 
@@ -46,7 +46,7 @@
 
     - name: Deploy configuration # noqa: syntax-check
       arista.eos.eos_config:
-        src: "{{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
+        src: "{{ git_work_dir }}/configs/{{ inventory_hostname }}.cfg"
         replace: config
         save_when: modified
       become: true
