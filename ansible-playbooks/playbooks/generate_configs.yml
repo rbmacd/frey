@@ -47,7 +47,7 @@
 
     - name: Create generated configs directory in git working directory # noqa: run-once risky-file-permissions
       ansible.builtin.file:
-        path: "{{ git_work_dir }}/configs/generated"
+        path: "{{ git_work_dir }}/configs"
         state: directory
       delegate_to: localhost
       run_once: true
@@ -102,17 +102,17 @@
     - name: Generate configuration from template # noqa: no-relative-paths risky-file-permissions
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/arista_full_config.j2"
-        dest: "{{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
+        dest: "{{ git_work_dir }}/configs/{{ inventory_hostname }}.cfg"
       delegate_to: localhost
 
     - name: Display generated config location
       ansible.builtin.debug:
-        msg: "Generated: {{ git_work_dir }}/configs/generated/{{ inventory_hostname }}.cfg"
+        msg: "Generated: {{ git_work_dir }}/configs/{{ inventory_hostname }}.cfg"
 
     - name: Commit and push generated configs to Git # noqa: run-once
       ansible.builtin.shell: |
         cd {{ git_work_dir }}
-        git add configs/generated/
+        git add configs/
         if git diff --staged --quiet; then
           echo "no_changes"
           exit 0

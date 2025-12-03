@@ -47,6 +47,7 @@ echo
 
 # Prompt for AWX ingress hostname to define in helm chart values
 read -p "Enter AWX ingress URL: " AWX_URL 
+export AWX_URL
 
 echo ""
 echo "-------------------------------------------"
@@ -184,6 +185,9 @@ if [ -z "$ARC_GIT_TOKEN" ]; then
     echo "Using same GitHub PAT"
 fi
 
+export ARC_GIT_TOKEN
+
+
 ### K3S ###
 
 echo ""
@@ -197,7 +201,6 @@ sudo curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE="644" sh -
 
 # Set KUBECONFIG environment variable to use k3s kubeconfig
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-
 
 ### VAULT ###
 
@@ -321,9 +324,13 @@ helm install --namespace arc-systems --create-namespace arc oci://ghcr.io/action
 #   Two runner scaleset installations, one for Frey infra and templates, one for Frey generated configs
 
 ARC_GIT_URL=$ARC_GIT_INFRA_URL
+export ARC_GIT_URL
 ARC_RUNNER_SCALESET_NAME="frey-infra-and-templates"
+export ARC_RUNNER_SCALESET_NAME
+
 envsubst '${ARC_GIT_URL} ${ARC_GIT_TOKEN} ${ARC_RUNNER_SCALESET_NAME}' < services/github-actions-runner/frey-arc-runner-values.yaml | helm install --namespace arc-systems arc-runner-set-templates oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set -f -
 
 ARC_GIT_URL=$ARC_GIT_CONFIG_URL
 ARC_RUNNER_SCALESET_NAME="frey-configs"
+
 envsubst '${ARC_GIT_URL} ${ARC_GIT_TOKEN} ${ARC_RUNNER_SCALESET_NAME}' < services/github-actions-runner/frey-arc-runner-values.yaml | helm install --namespace arc-systems arc-runner-set-configs oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set -f -
